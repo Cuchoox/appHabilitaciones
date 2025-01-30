@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, make_response
 from models import db, Trabajador, HistorialAsignacion
 import logging
 from flask_jwt_extended import get_jwt_identity, jwt_required
@@ -9,28 +9,43 @@ trabajador_bp = Blueprint('trabajador_bp', __name__)
 @trabajador_bp.route('/trabajadores', methods=['GET'])
 @jwt_required()
 def obtener_trabajadores():
-    current_user = get_jwt_identity()  # Aquí extrae el usuario del token
-    print(f"Usuario autenticado: {current_user}")  # Para depuración
-    trabajadores = Trabajador.query.all()
-    return jsonify([{
-        "id": t.id,
-        "nombre": t.nombre,
-        "rut": t.rut,
-        "cargo": t.cargo,
-        "localidad": t.localidad,
-        "tipo": t.tipo
-    } for t in trabajadores])
-    
+    if 'Authorization' not in request.headers:
+        return make_response(jsonify({"msg": "Missing Authorization Header"}), 422)
+    try:
+        print(f"📌 Headers recibidos: {request.headers}")  # Verificar si Authorization llega
+        current_user = get_jwt_identity()
+        print(f"✅ Usuario autenticado: {current_user}")
+
+        if not current_user:
+            return jsonify({"error": "Usuario no autenticado"}), 401
+
+        trabajadores = Trabajador.query.all()
+        print(f"✅ Total trabajadores obtenidos: {len(trabajadores)}")
+
+        return jsonify([{
+            "id": t.id,
+            "nombre": t.nombre,
+            "rut": t.rut,
+            "cargo": t.cargo,
+            "localidad": t.localidad,
+            "tipo": t.tipo if t.tipo else "N/A"
+        } for t in trabajadores]), 200
+
+    except Exception as e:
+        print(f"❌ Error en el backend: {e}")
+        return jsonify({"error": str(e)}), 500
+
 @trabajador_bp.route('/trabajadores', methods=['POST'])
 @jwt_required()
 def create_trabajador():
     data = request.json
     nuevo_trabajador = Trabajador(
-        nombre=data['nombre'],
-        rut=data['rut'],
-        cargo=data['cargo'],
-        localidad=data['localidad']
-    )
+    nombre=data['nombre'],
+    rut=data['rut'],
+    cargo=data['cargo'],
+    localidad=data['localidad'],
+    tipo=data.get('tipo'    )  # Valor por defecto si no se envía
+        )
     db.session.add(nuevo_trabajador)
     db.session.commit()
     return jsonify({'message': 'Trabajador creado correctamente', 'id': nuevo_trabajador.id})

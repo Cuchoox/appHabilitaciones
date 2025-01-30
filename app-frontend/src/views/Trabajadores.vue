@@ -125,7 +125,13 @@ export default {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`  // Enviar el token JWT
                 },
-                body: JSON.stringify(nuevoTrabajador),
+                body: JSON.stringify({
+                    nombre: nuevoTrabajador.nombre,
+                    rut: nuevoTrabajador.rut,
+                    cargo: nuevoTrabajador.cargo,
+                    tipo: nuevoTrabajador.tipo,
+                    empresaId: nuevoTrabajador.empresaId
+                }),
             });
 
             if (!response.ok) {
@@ -140,26 +146,43 @@ export default {
         }
     },
 
-    async obtenerTrabajadores() {
+async obtenerTrabajadores() {
+    this.error = null;
+    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+
+    if (!token) {
+        console.error("❌ No se encontró token de autenticación");
+        return;
+    }
+
+    console.log("📌 Token enviado:", token);
+
     try {
-        const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
         const response = await fetch("http://localhost:5000/trabajadores", {
             method: "GET",
             headers: {
-                "Authorization": `Bearer ${token}`, // 🔹 Asegúrate de enviar el token
-                "Content-Type": "application/json"
+                "Authorization": `Bearer ${token}`
             }
         });
 
         if (!response.ok) {
-            throw new Error("Error al obtener trabajadores");
+            const errorData = await response.json();
+            throw new Error(`❌ Error en la solicitud: ${response.status} - ${errorData.error || "Error desconocido"}`);
         }
 
-        this.trabajadores = await response.json();
-    } catch (error) {
-        console.error("Error:", error);
+        const data = await response.json();
+        console.log("✅ Trabajadores obtenidos:", data);
+        this.trabajadores = data;
+
+    } catch (err) {
+        console.error("❌ Error al obtener trabajadores:", err);
+        this.error = err.message;
     }
 }
+
+
+
+
 
 },
 
