@@ -59,3 +59,7 @@ def update_usuario(id):
 
         db.session.commit()
         return jsonify({'message': 'Usuario actualizado correctamente'})
+
+@usuario_bp.route('/logout', methods=['POST'])
+def logout():
+        return jsonify({'message': 'Logout successful'})

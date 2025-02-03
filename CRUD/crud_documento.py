@@ -5,6 +5,16 @@ from flask_jwt_extended import jwt_required
 # Crear un Blueprint para Documento
 documento_bp = Blueprint('documento_bp', __name__)
 
+
+@documento_bp.route('/documentos/count', methods=['GET'])
+@jwt_required()
+def count_documentos():
+    try:
+        count = Documento.query.count()
+        return jsonify({'count': count}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # Obtener todos los documentos
 @documento_bp.route('/documentos', methods=['GET'])
 @jwt_required()

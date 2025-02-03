@@ -8,19 +8,20 @@
           <h1 style="text-align: center; width: 100%;"></h1>
         </header>
         <section class="stats">
-          <div class="stat-card">
-            <h3>Trabajadores</h3>
-            <p>120 registrados</p>
-          </div>
-          <div class="stat-card">
-            <h3>Empresas</h3>
-            <p>35 activas</p>
-          </div>
-          <div class="stat-card">
-            <h3>Documentos</h3>
-            <p>3,400 almacenados</p>
-          </div>
-        </section>
+  <div class="stat-card">
+    <h3>Trabajadores</h3>
+    <p>{{ workersCount }}</p>
+  </div>
+  <div class="stat-card">
+    <h3>Empresas</h3>
+    <p>{{ companiesCount }}</p>
+  </div>
+  <div class="stat-card">
+    <h3>Documentos</h3>
+    <p>{{ documentsCount }}</p>
+  </div>
+</section>
+
         <!-- Nueva Sección: Documentos Próximos a Vencer -->
         <section class="alerts">
           <div class="alert-card danger">
@@ -41,10 +42,18 @@
   
   <script>
   import Sidebar from "./Sidebar.vue";
+  
   export default {
     name: "Dashboard",
     components: {
       Sidebar,
+    },
+    data() {
+      return {
+        workersCount: 0,
+        documentsCount: 0,
+        companiesCount: 0,
+      };
     },
     created() {
       console.log("Cargando Dashboard...");
@@ -57,10 +66,53 @@
         this.$router.push("/");
       } else {
         console.log("Token detectado:", token);
+        this.obtenerConteos();
       }
     },
+    methods: {
+      async obtenerConteos() {
+        const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+  
+        if (!token) {
+          console.error("❌ No se encontró token de autenticación");
+          return;
+        }
+  
+        try {
+          const [trabajadoresRes, empresasRes, documentosRes] = await Promise.all([
+            fetch("http://localhost:5000/trabajadores/count", {
+              headers: { "Authorization": `Bearer ${token}` }
+            }),
+            fetch("http://localhost:5000/empresas/count", {
+              headers: { "Authorization": `Bearer ${token}` }
+            }),
+            fetch("http://localhost:5000/documentos/count", {
+              headers: { "Authorization": `Bearer ${token}` }
+            })
+          ]);
+  
+          if (!trabajadoresRes.ok || !empresasRes.ok || !documentosRes.ok) {
+            throw new Error("Error obteniendo conteos desde la API");
+          }
+  
+          const trabajadoresData = await trabajadoresRes.json();
+          const empresasData = await empresasRes.json();
+          const documentosData = await documentosRes.json();
+  
+          this.workersCount = trabajadoresData.count;
+          this.companiesCount = empresasData.count;
+          this.documentsCount = documentosData.count;
+  
+          console.log("✅ Conteos obtenidos:", this.workersCount, this.companiesCount, this.documentsCount);
+          
+        } catch (err) {
+          console.error("❌ Error al obtener conteos:", err);
+        }
+      }
+    }
   };
   </script>
+  
   
   <style scoped>
 /* 🔹 Ajustes generales para evitar scroll horizontal */

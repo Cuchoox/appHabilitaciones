@@ -47,7 +47,6 @@
                       <td style="color: black;">{{ trabajador.rut }}</td>
                       <td style="color: black;">{{ trabajador.cargo }}</td>
                       <td>
-                          <button class="ver" @click="verTrabajador(trabajador)">👁 Ver</button>
                           <button class="editar" @click="editarTrabajador(trabajador)">✏ Editar</button>
                           <button class="eliminar" @click="eliminarTrabajador(trabajador.id)">🗑 Eliminar</button>
                       </td>
@@ -58,10 +57,13 @@
           <!-- Botón flotante para agregar trabajador -->
           <button class="boton-flotante" @click="mostrarFormulario = true">➕ Agregar Trabajador</button>
           <FormularioTrabajador 
-                :mostrar="mostrarFormulario" 
-                @cerrar="mostrarFormulario = false" 
-                @agregar="agregarTrabajador"
-            />
+  :mostrar="mostrarFormulario" 
+  :trabajador="trabajadorEditado"
+  @cerrar="cerrarFormulario"
+  @agregar="agregarTrabajador"
+  @editar="guardarEdicionTrabajador"
+/>
+
         </main>
   </div>
 </template>
@@ -69,82 +71,195 @@
 <script>
 import Sidebar from "../components/Sidebar.vue";
 import FormularioTrabajador from "../components/FormularioTrabajador.vue"; // Importar el componente
+import Swal from "sweetalert2"; // Importamos SweetAlert2
+
 
 export default {
   components: { Sidebar, FormularioTrabajador }, // Registrar el componente
   data() {
       return {
+          trabajadorEditado: null,
           mostrarFormulario: false, // Controla la visibilidad del formulario
           selectedTab: "Planta", // Controla la pestaña activa
           searchQuery: "",
           selectedEmpresa: "",
           trabajadores: [
-              { id: 1, nombre: "Juan Pérez", rut: "12.345.678-9", cargo: "Supervisor", tipo: "Planta", empresaId: 1 },
-              { id: 2, nombre: "Pedro Gómez", rut: "9.876.543-2", cargo: "Técnico", tipo: "Eventual", empresaId: 2 },
-              { id: 3, nombre: "María González", rut: "11.654.321-5", cargo: "Administrativa", tipo: "Planta", empresaId: 1 },
-              { id: 4, nombre: "Carlos Rodríguez", rut: "14.789.654-3", cargo: "Operario", tipo: "Eventual", empresaId: 2 }
           ],
-          empresas: [
-              { id: 1, nombre: "Empresa A" },
-              { id: 2, nombre: "Empresa B" }
-          ]
+         
       };
   },
   computed: {
-      filteredTrabajadores() {
-          return this.trabajadores.filter(trabajador =>
-              trabajador.nombre.toLowerCase().includes(this.searchQuery.toLowerCase()) &&
-              (this.selectedEmpresa === "" || trabajador.empresaId == this.selectedEmpresa) &&
-              trabajador.tipo === this.selectedTab
-          );
-      }
+    filteredTrabajadores() {
+  return this.trabajadores.filter(trabajador => {
+    // Verificamos si trabajador.nombre está definido antes de usar toLowerCase()
+    const nombre = trabajador.nombre ? trabajador.nombre.toLowerCase() : "";
+
+    return (
+      nombre.includes(this.searchQuery.toLowerCase()) &&
+      (this.selectedEmpresa === "" || trabajador.empresaId == this.selectedEmpresa) &&
+      trabajador.tipo === this.selectedTab
+    );
+  });
+}
+
   },
   methods: {
-      verTrabajador(trabajador) {
-          alert(`Ver detalles de ${trabajador.nombre}`);
-      },
-      editarTrabajador(trabajador) {
-          alert(`Editar ${trabajador.nombre}`);
-      },
-      eliminarTrabajador(id) {
-          this.trabajadores = this.trabajadores.filter(t => t.id !== id);
-      },
-      async agregarTrabajador(nuevoTrabajador) {
-        const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+    verTrabajador(trabajador) {
+      alert(`👁️ ${trabajador.nombre} - ${trabajador.rut} - ${trabajador.cargo}`);
+  },
+      
+ async agregarTrabajador(nuevoTrabajador) {
+    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
 
-        if (!token) {
-            alert("No tienes autorización. Inicia sesión nuevamente.");
-            this.$router.push("/"); // Redirige al login si no hay token
-            return;
+    if (!token) {
+        alert("No tienes autorización. Inicia sesión nuevamente.");
+        this.$router.push("/"); // Redirige al login si no hay token
+        return;
+    }
+
+    try {
+        const response = await fetch("http://localhost:5000/trabajadores", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                nombre: nuevoTrabajador.nombre,
+                rut: nuevoTrabajador.rut,
+                cargo: nuevoTrabajador.cargo,
+                tipo: nuevoTrabajador.tipo,
+                localidad: nuevoTrabajador.localidad,
+                empresaId: nuevoTrabajador.empresaId
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Error al agregar trabajador: ${errorData.message || "Desconocido"}`);
         }
 
-        try {
-            const response = await fetch("http://localhost:5000/trabajadores", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`  // Enviar el token JWT
-                },
-                body: JSON.stringify({
-                    nombre: nuevoTrabajador.nombre,
-                    rut: nuevoTrabajador.rut,
-                    cargo: nuevoTrabajador.cargo,
-                    tipo: nuevoTrabajador.tipo,
-                    empresaId: nuevoTrabajador.empresaId
-                }),
-            });
+        const trabajadorGuardado = await response.json();
+        console.log("✅ Trabajador agregado correctamente", trabajadorGuardado);
 
-            if (!response.ok) {
-                throw new Error("Error al agregar el trabajador");
-            }
+        // ✅ Llamamos a obtenerTrabajadores para actualizar la lista
+        await this.obtenerTrabajadores();
 
-            const trabajadorGuardado = await response.json();
-            this.trabajadores.push(trabajadorGuardado);
-        } catch (error) {
-            console.error("Error:", error);
-            alert("No se pudo agregar el trabajador. Inténtelo de nuevo.");
-        }
-    },
+        // ✅ Cerramos el formulario después de agregar
+        this.mostrarFormulario = false;
+
+    } catch (error) {
+        console.error("❌ Error al agregar trabajador:", error);
+    }
+},
+
+
+async eliminarTrabajador(id) {
+  const resultado = await Swal.fire({
+    title: "¿Estás seguro?",
+    text: "Esta acción eliminará permanentemente al trabajador.",
+    icon: "warning",
+    showCancelButton: true,
+    confirmButtonColor: "#d33",
+    cancelButtonColor: "#3085d6",
+    confirmButtonText: "Sí, eliminar",
+    cancelButtonText: "Cancelar"
+  });
+
+  if (!resultado.isConfirmed) {
+    return; // Si el usuario cancela, no hacemos nada
+  }
+
+  const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+
+  if (!token) {
+    Swal.fire("Error", "No tienes autorización. Inicia sesión nuevamente.", "error");
+    this.$router.push("/"); // Redirige al login si no hay token
+    return;
+  }
+
+  try {
+    const response = await fetch(`http://localhost:5000/trabajadores/${id}`, {
+      method: "DELETE",
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Error al eliminar trabajador: ${errorData.message || "Desconocido"}`);
+    }
+
+    console.log("✅ Trabajador eliminado correctamente");
+
+    // Mostrar mensaje de éxito
+    Swal.fire("Eliminado", "El trabajador ha sido eliminado correctamente.", "success");
+
+    // ✅ Actualizamos la lista de trabajadores
+    await this.obtenerTrabajadores();
+
+  } catch (error) {
+    console.error("❌ Error al eliminar trabajador:", error);
+    Swal.fire("Error", "Hubo un problema al eliminar el trabajador.", "error");
+  }
+},
+
+
+editarTrabajador(trabajador) {
+    this.trabajadorEditado = { ...trabajador }; // Pasamos el trabajador al formulario
+    this.mostrarFormulario = true;
+  },
+  cerrarFormulario() {
+    this.trabajadorEditado = null; // Resetea el formulario cuando se cierra
+    this.mostrarFormulario = false;
+  },
+
+
+async guardarEdicionTrabajador(trabajadorEditado) {
+  const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+
+  if (!token) {
+    alert("No tienes autorización. Inicia sesión nuevamente.");
+    this.$router.push("/"); // Redirige al login si no hay token
+    return;
+  }
+
+  try {
+    const response = await fetch(`http://localhost:5000/trabajadores/${trabajadorEditado.id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        nombre: trabajadorEditado.nombre,
+        rut: trabajadorEditado.rut,
+        cargo: trabajadorEditado.cargo,
+        tipo: trabajadorEditado.tipo,
+        localidad: trabajadorEditado.localidad,
+        empresaId: trabajadorEditado.empresaId
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Error al editar trabajador: ${errorData.message || "Desconocido"}`);
+    }
+
+    const trabajadorActualizado = await response.json();
+    console.log("✅ Trabajador editado correctamente", trabajadorActualizado);
+
+    // ✅ Llamamos a obtenerTrabajadores para actualizar la lista
+    await this.obtenerTrabajadores();
+
+    // ✅ Cerramos el formulario después de editar
+    this.mostrarFormulario = false;
+
+  } catch (error) {
+    console.error("❌ Error al editar trabajador:", error);
+  }
+},
 
 async obtenerTrabajadores() {
     this.error = null;
@@ -178,11 +293,36 @@ async obtenerTrabajadores() {
         console.error("❌ Error al obtener trabajadores:", err);
         this.error = err.message;
     }
-}
+},
+async obtenerEmpresas() {
+    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
 
+    if (!token) {
+        console.error("❌ No se encontró token de autenticación");
+        return;
+    }
 
+    try {
+        const response = await fetch("http://localhost:5000/empresas", {
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${token}`
+            }
+        });
 
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`❌ Error en la solicitud: ${response.status} - ${errorData.error || "Error desconocido"}`);
+        }
 
+        const data = await response.json();
+        console.log("✅ Empresas obtenidas:", data);
+        this.empresas = data; // Asigna las empresas a la variable en data()
+
+    } catch (err) {
+        console.error("❌ Error al obtener empresas:", err);
+    }
+},
 
 },
 
@@ -191,6 +331,7 @@ async obtenerTrabajadores() {
 
 created() {
     this.obtenerTrabajadores();
+    this.obtenerEmpresas();
 }
 };
 </script>
@@ -224,6 +365,7 @@ created() {
   overflow-y: auto;
   overflow-x: hidden;
   box-sizing: border-box;
+  margin-left: 80px;
 }
 
 /* 🔹 Encabezado */
@@ -304,7 +446,7 @@ button {
   font-size: 14px;
 }
 
-.ver { background-color: #007bff; color: white; }
+
 .editar { background-color: #ffc107; color: black; }
 .eliminar { background-color: #dc3545; color: white; }
 

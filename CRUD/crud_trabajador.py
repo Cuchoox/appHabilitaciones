@@ -6,6 +6,15 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 # Crear un Blueprint para las rutas de Trabajador
 trabajador_bp = Blueprint('trabajador_bp', __name__)
 
+@trabajador_bp.route('/trabajadores/count', methods=['GET'])
+@jwt_required()
+def count_trabajadores():
+    try:
+        count = Trabajador.query.count()
+        return jsonify({'count': count}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @trabajador_bp.route('/trabajadores', methods=['GET'])
 @jwt_required()
 def obtener_trabajadores():
@@ -38,17 +47,25 @@ def obtener_trabajadores():
 @trabajador_bp.route('/trabajadores', methods=['POST'])
 @jwt_required()
 def create_trabajador():
-    data = request.json
+    data = request.get_json()  # Obtiene JSON del request
+    print("📩 Datos recibidos en backend:", data)  # 🔥 Verifica los datos
+
+    if "localidad" not in data:
+        print("❌ Error: El campo 'localidad' no está en la petición")
+        return jsonify({"error": "Falta el campo 'localidad'"}), 400  # Devuelve error claro
+
     nuevo_trabajador = Trabajador(
-    nombre=data['nombre'],
-    rut=data['rut'],
-    cargo=data['cargo'],
-    localidad=data['localidad'],
-    tipo=data.get('tipo'    )  # Valor por defecto si no se envía
-        )
+        nombre=data['nombre'],
+        rut=data['rut'],
+        cargo=data['cargo'],
+        localidad=data['localidad'],  # Aquí ya deberíamos tener localidad
+        tipo=data.get('tipo', "Desconocido")  # Si no tiene tipo, pone "Desconocido"
+    )
+
     db.session.add(nuevo_trabajador)
     db.session.commit()
     return jsonify({'message': 'Trabajador creado correctamente', 'id': nuevo_trabajador.id})
+
 
 @trabajador_bp.route('/trabajadores/<int:id>', methods=['PUT'])
 @jwt_required()

@@ -3,7 +3,7 @@
         <div class="login-container">
             <div class="login-graphic">
                 <img src="../assets/logo.png" alt="Logo"
-                    style="max-width: 100%; max-height: 100%; width: 70%; height: 70%;" />
+                    style="max-width: 100%; max-height: 100%;" />
             </div>
             <div class="login-form">
                 <h1>Bienvenido</h1>
@@ -16,7 +16,7 @@
                     </label>
                     <a href="#">Recuperar contraseña</a>
                 </div>
-                <button @click="handleLogin">Login</button>
+                <button @click="handleLogin">Iniciar Sesión</button>
                 <p v-if="error" class="error">{{ error }}</p>
             </div>
         </div>
@@ -82,6 +82,7 @@ export default {
                 console.error("Error en el login:", err);
             }
         },
+        
     },
 };
 </script>

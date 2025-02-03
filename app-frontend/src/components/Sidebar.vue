@@ -16,13 +16,44 @@
       </nav>
   
       <!-- Botón de Cerrar Sesión -->
-      <button class="logout-button"> Cerrar Sesión</button>
-    </aside>
-  </template>
+      <button class="logout-button" @click="handleLogout">Cerrar Sesión</button>
+      </aside> </template>
   
   <script>
   export default {
     name: "Sidebar",
+    methods: {
+      async handleLogout() {
+            console.log("Cerrando sesión...");
+
+            try {
+            const response = await fetch("http://localhost:5000/logout", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+            });
+
+            if (!response.ok) {
+                throw new Error("Error al cerrar sesión");
+            }
+
+            // Eliminar el token de localStorage y sessionStorage
+            localStorage.removeItem("access_token");
+            sessionStorage.removeItem("access_token");
+
+            // Verificar que Vue Router está disponible
+            if (!this.$router) {
+                console.error("Vue Router no está disponible.");
+                return;
+            }
+
+            console.log("Redirigiendo a /login...");
+            this.$router.replace("/"); // Evita guardar en el historial
+
+            } catch (err) {
+            console.error("Error en el logout:", err);
+            }
+        }
+    },
   };
   </script>
   

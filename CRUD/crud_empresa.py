@@ -5,16 +5,33 @@ from flask_jwt_extended import jwt_required
 # Crear un Blueprint para Empresa
 empresa_bp = Blueprint('empresa_bp', __name__)
 
-# Obtener todas las empresas
+
+@empresa_bp.route('/empresas/count', methods=['GET'])
+@jwt_required()
+def count_empresas():
+    try:
+        count = Empresa.query.count()
+        return jsonify({'count': count}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @empresa_bp.route('/empresas', methods=['GET'])
 @jwt_required()
-def get_empresas():
+def obtener_empresas():
     empresas = Empresa.query.all()
-    return jsonify([{
-        'id': e.id,
-        'nombre': e.nombre,
-        'localidad': e.localidad
-    } for e in empresas])
+
+    resultado = []
+    for empresa in empresas:
+        trabajadores_activos = HistorialAsignacion.query.filter_by(empresa_id=empresa.id).count()
+
+        resultado.append({
+            "id": empresa.id,
+            "nombre": empresa.nombre,
+            "trabajadores_activos": trabajadores_activos
+        })
+
+    return jsonify(resultado), 200
 
 # Crear una nueva empresa
 @empresa_bp.route('/empresas', methods=['POST'])
