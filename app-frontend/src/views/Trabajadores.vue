@@ -49,6 +49,9 @@
                       <td>
                           <button class="editar" @click="editarTrabajador(trabajador)">✏ Editar</button>
                           <button class="eliminar" @click="eliminarTrabajador(trabajador.id)">🗑 Eliminar</button>
+                          <button class="documentos" @click="verDocumentos(trabajador.id)">📂 Documentos</button>
+
+                          
                       </td>
                   </tr>
               </tbody>
@@ -83,8 +86,7 @@ export default {
           selectedTab: "Planta", // Controla la pestaña activa
           searchQuery: "",
           selectedEmpresa: "",
-          trabajadores: [
-          ],
+          trabajadores: [],
          
       };
   },
@@ -294,6 +296,10 @@ async obtenerTrabajadores() {
         this.error = err.message;
     }
 },
+verDocumentos(id) {
+    sessionStorage.setItem("trabajador_id", id); // Guarda el ID temporalmente
+    this.$router.push("/documentos");
+  },
 async obtenerEmpresas() {
     const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
 
@@ -322,6 +328,7 @@ async obtenerEmpresas() {
     } catch (err) {
         console.error("❌ Error al obtener empresas:", err);
     }
+    
 },
 
 },
@@ -365,7 +372,7 @@ created() {
   overflow-y: auto;
   overflow-x: hidden;
   box-sizing: border-box;
-  margin-left: 80px;
+  
 }
 
 /* 🔹 Encabezado */

@@ -26,7 +26,7 @@ class Documento(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     trabajador_id = db.Column(db.Integer, db.ForeignKey('trabajadores.id'), nullable=False)
     nombre_archivo = db.Column(db.String(255), nullable=False)
-    tipo = db.Column(db.String(10))
+    categoria = db.Column(db.String(10))
     ruta_archivo = db.Column(db.String(255), nullable=False)
     creado_en = db.Column(db.DateTime, default=db.func.now())
 

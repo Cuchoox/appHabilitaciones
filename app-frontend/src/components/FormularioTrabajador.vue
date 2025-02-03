@@ -11,7 +11,12 @@
 
       <div class="form-group">
         <label>RUT:</label>
-        <input type="text" v-model="nuevoTrabajador.rut" placeholder="12.345.678-9" required />
+        <input type="text" 
+       v-model="nuevoTrabajador.rut" 
+       placeholder="12.345.678-9" 
+       @input="formatearRut"
+       maxlength="12" />
+
       </div>
 
       <div class="form-group">
@@ -106,7 +111,30 @@ methods: {
       tipo: "",
     };
   },
+
+  
+  formatearRut() {
+    let rut = this.nuevoTrabajador.rut;
+    
+    // Remueve todo lo que no sea número o 'k' (último dígito verificador)
+    rut = rut.replace(/[^0-9kK]/g, '');
+    
+    // Si tiene más de 9 caracteres (RUT chileno), corta el exceso
+    if (rut.length > 9) rut = rut.slice(0, 9);
+    
+    // Separa el dígito verificador
+    let cuerpo = rut.slice(0, -1);
+    let dv = rut.slice(-1);
+    
+    // Aplica el formato con puntos y guión
+    cuerpo = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    
+    // Reasigna el valor formateado
+    this.nuevoTrabajador.rut = cuerpo + (dv ? `-${dv}` : '');
+  }
+
 },
+
 };
 </script>
 
