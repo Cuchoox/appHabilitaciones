@@ -6,8 +6,10 @@ class Trabajador(db.Model):
     __tablename__ = 'trabajadores'
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
+    apellido = db.Column(db.String(100), nullable=False)
     rut = db.Column(db.String(20), unique=True, nullable=False)
     cargo = db.Column(db.String(50))
+    empresa = db.Column(db.String(100))
     localidad = db.Column(db.String(50))
     tipo = db.Column(db.String(20))
     creado_en = db.Column(db.DateTime, default=db.func.now())
@@ -19,8 +21,13 @@ class Empresa(db.Model):
     nombre = db.Column(db.String(100), nullable=False)
     localidad = db.Column(db.String(50))
     creado_en = db.Column(db.DateTime, default=db.func.now())
-    asignaciones = db.relationship('HistorialAsignacion', backref='empresa', lazy=True)
 
+    # Relación con requisitos de la empresa
+    requisitos_empresa = db.relationship('RequisitoEmpresa', backref='empresa', lazy=True, cascade="all, delete-orphan")
+
+    # Relación con historial de asignaciones
+    asignaciones = db.relationship('HistorialAsignacion', backref='empresa', lazy=True)
+    
 class Documento(db.Model):
     __tablename__ = 'documentos'
     id = db.Column(db.Integer, primary_key=True)
@@ -29,6 +36,8 @@ class Documento(db.Model):
     categoria = db.Column(db.String(10))
     ruta_archivo = db.Column(db.String(255), nullable=False)
     creado_en = db.Column(db.DateTime, default=db.func.now())
+    fecha_vencimiento = db.Column(db.Date)
+    trabajador = db.relationship('Trabajador', backref='documentos', lazy=True)
 
 class HistorialAsignacion(db.Model):
     __tablename__ = 'historial_asignaciones'
@@ -53,3 +62,13 @@ class Usuario(db.Model):
     # Método para verificar contraseña
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+class RequisitoEmpresa(db.Model):
+    __tablename__ = 'requisitos_empresa'
+    id = db.Column(db.Integer, primary_key=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresas.id'), nullable=False)
+    nombre_requisito = db.Column(db.String(255), nullable=False)  # Ej: "Carnet de identidad"
+    categoria = db.Column(db.String(50), nullable=False)  # Ej: "Personal", "Licencias", "Certificaciones"
+
+    def __repr__(self):
+        return f"<Requisito {self.nombre_requisito} - {self.categoria}>"

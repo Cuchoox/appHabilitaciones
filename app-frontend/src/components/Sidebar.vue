@@ -11,7 +11,6 @@
         <router-link to="/inicio" class="menu-item" :class="{ active: $route.path === '/inicio' }"> Dashboard</router-link>
         <router-link to="/trabajadores" class="menu-item" :class="{ active: $route.path === '/trabajadores' }"> Trabajadores</router-link>
         <router-link to="/empresas" class="menu-item" :class="{ active: $route.path === '/empresas' }"> Empresas</router-link>
-        <router-link to="/documentos" class="menu-item" :class="{ active: $route.path === '/documentos' }"> Documentos</router-link>
         <router-link to="/historial" class="menu-item" :class="{ active: $route.path === '/historial' }"> Historial</router-link>
       </nav>
   

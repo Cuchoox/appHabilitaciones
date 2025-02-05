@@ -129,6 +129,7 @@ export default {
             body: JSON.stringify({
                 nombre: nuevoTrabajador.nombre,
                 rut: nuevoTrabajador.rut,
+                apellido: nuevoTrabajador.apellido,
                 cargo: nuevoTrabajador.cargo,
                 tipo: nuevoTrabajador.tipo,
                 localidad: nuevoTrabajador.localidad,

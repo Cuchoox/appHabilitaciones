@@ -5,8 +5,13 @@
 
       <!-- Campos del formulario -->
       <div class="form-group">
-        <label>Nombre:</label>
-        <input type="text" v-model="nuevoTrabajador.nombre" placeholder="Ingrese nombre" required />
+        <label>Nombres:</label>
+        <input type="text" v-model="nuevoTrabajador.nombre" placeholder="Ingrese nombres" required />
+      </div>
+
+      <div class="form-group">
+        <label>Apellidos:</label>
+        <input type="text" v-model="nuevoTrabajador.apellido" placeholder="Ingrese apellidos" required />
       </div>
 
       <div class="form-group">
@@ -59,6 +64,7 @@ data() {
   return {
     nuevoTrabajador: {
       nombre: "",
+      apellido: "",
       rut: "",
       cargo: "",
       localidad: "",
@@ -105,6 +111,7 @@ methods: {
   resetFormulario() {
     this.nuevoTrabajador = {
       nombre: "",
+      apellido:"",
       rut: "",
       cargo: "",
       localidad: "",

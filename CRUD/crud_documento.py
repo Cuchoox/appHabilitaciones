@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from models import db, Documento
+from models import db, Documento, Trabajador
 from flask_jwt_extended import jwt_required
 
 # Crear un Blueprint para Documento
@@ -15,18 +15,26 @@ def count_documentos():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# Obtener todos los documentos
-@documento_bp.route('/documentos', methods=['GET'])
+@documento_bp.route('/documentos-general', methods=['GET'])
 @jwt_required()
 def get_documentos():
-    documentos = Documento.query.all()
-    return jsonify([{
-        'id': d.id,
-        'trabajador_id': d.trabajador_id,
-        'nombre_archivo': d.nombre_archivo,
-        'tipo': d.tipo,
-        'ruta_archivo': d.ruta_archivo
-    } for d in documentos])
+    documentos = db.session.query(Documento, Trabajador.nombre).join(
+        Trabajador, Documento.trabajador_id == Trabajador.id
+    ).all()
+
+    return jsonify([
+        {
+            'id': d.id,
+            'trabajador_id': d.trabajador_id,
+            'nombre_trabajador': nombre,  # 🔹 Se obtiene desde el JOIN
+            'nombre_archivo': d.nombre_archivo,
+            'categoria': d.categoria,
+            'fecha_vencimiento': d.fecha_vencimiento,
+            'ruta_archivo': d.ruta_archivo
+        }
+        for d, nombre in documentos
+    ])
+    
 
 # Crear un nuevo documento
 @documento_bp.route('/documentos', methods=['POST'])

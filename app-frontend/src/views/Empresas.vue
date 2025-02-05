@@ -1,109 +1,427 @@
 <template>
-    <div class="empresas-container">
-      <h1>Lista de Empresas</h1>
+    <div class="app-container">
+        <Sidebar />
+        <div class="empresas-container">
+            <h1>Lista de Empresas</h1>
+            
+            <!-- Barra de búsqueda -->
+            <input type="text" v-model="busqueda" placeholder="Buscar empresa..." class="barra-busqueda" />
+            
+            <button class="boton agregar" @click="mostrarModalAgregar = true">➕ Agregar Empresa</button>
+            
+            <table class="tabla-empresas">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Trabajadores Activos</th>
+                        <th>Documentos Requeridos</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="empresa in empresasFiltradas" :key="empresa.id">
+                        <td>{{ empresa.nombre }}</td>
+                        <td @click="verTrabajadores(empresa)">{{ empresa.trabajadores_activos }}</td>
+                        <td>
+                            <button class="config-docs" @click="configurarDocumentos(empresa)">📄 Configurar</button>
+                        </td>
+                        <td>
+                            <button class="eliminar" @click="eliminarEmpresa(empresa)">❌ Eliminar</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
   
-      <table class="tabla-empresas">
-        <thead>
-          <tr>
-            <th>Nombre</th>
-            <th>Trabajadores Activos</th>
-            <th>Documentos Requeridos</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="empresa in empresas" :key="empresa.id">
-            <td>{{ empresa.nombre }}</td>
-            <td>{{ empresa.trabajadores_activos }}</td>
-            <td>
-              <button class="config-docs" @click="configurarDocumentos(empresa)">📄 Configurar</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+        <!-- Modal Agregar Empresa -->
+        <div v-if="mostrarModalAgregar" class="modal-overlay">
+            <div class="modal">
+                <h2>Agregar Empresa</h2>
+                <input type="text" v-model="nuevaEmpresa" placeholder="Nombre de la empresa" />
+                <button class="boton guardar" @click="agregarRequisito">✅ Guardar</button>
+                <button class="cerrar-modal" @click="mostrarModalAgregar = false">❌ Cerrar</button>
+            </div>
+        </div>
+  
+        <!-- Modal Configurar Documentos -->
+        <div v-if="mostrarModalConfigurar" class="modal-overlay">
+            <div class="modal">
+                <h2>Configurar Documentos para {{ empresaSeleccionada.nombre }}</h2>
+
+
+
+                <!-- Botón Editar (habilita eliminar requisitos pero NO muestra formulario) -->
+<button class="editar" @click="editarDocumentos = !editarDocumentos">✏️ Editar</button>
+
+<!-- Botón Agregar Requisito (muestra el formulario correctamente) -->
+<button class="boton agregar-requisito" @click="mostrarFormularioAgregar = true">➕ Agregar Requisito</button>
+
+<!-- Formulario solo aparece si se hace clic en "Agregar Requisito" -->
+<div v-if="mostrarFormularioAgregar">
+    <input type="text" v-model="nuevoDocumento.nombre" placeholder="Nombre del documento" />
+    <select v-model="nuevoDocumento.categoria">
+        <option disabled value="">Seleccione una categoría</option>
+        <option>Personal</option>
+        <option>Licencias</option>
+        <option>Certificaciones</option>
+    </select>
+    <button class="boton agregar-doc" @click="agregarDocumento">✅ Guardar</button>
+</div>
+
+
+
+<div v-if="editarDocumentos">
+                </div>
+                <button class="boton guardar-cambios" @click="guardarCambios">💾 Guardar Cambios</button>
+                <button class="cerrar-modal" @click="mostrarModalConfigurar = false">❌ Cerrar</button>
+            </div>
+        </div>
     </div>
   </template>
   
-  <script>
-  export default {
-    data() {
+
+<script>
+import Sidebar from "@/components/Sidebar.vue";
+import Swal from "sweetalert2";
+
+export default {
+  components: { Sidebar },
+  data() {
       return {
-        empresas: []
+        empresas: [],
+        busqueda: "",
+        mostrarModalAgregar: false,
+        nuevaEmpresa: "",
+        mostrarModalConfigurar: false,
+        empresaSeleccionada: {},
+        editarDocumentos: false,  // 🔹 Solo controla botones de edición y eliminación
+        mostrarFormularioAgregar: false,  // 🔹 Solo controla el formulario
+        nuevoDocumento: { nombre: "", categoria: "" }
       };
-    },
-    methods: {
-      async obtenerEmpresas() {
-        const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
-  
-        if (!token) {
-          console.error("❌ No se encontró token de autenticación");
-          return;
-        }
-  
-        try {
-          const response = await fetch("http://localhost:5000/empresas", {
-            method: "GET",
-            headers: {
-              "Authorization": `Bearer ${token}`
-            }
-          });
-  
-          if (!response.ok) {
-            throw new Error("Error al obtener empresas");
-          }
-  
-          this.empresas = await response.json();
-        } catch (error) {
-          console.error("❌ Error al obtener empresas:", error);
-        }
-      },
-      configurarDocumentos(empresa) {
-        alert(`Configurar documentos para ${empresa.nombre}`);
-        // Aquí más adelante puedes hacer un modal para tipificar los documentos requeridos
+  },
+  computed: {
+      empresasFiltradas() {
+          return this.empresas.filter(empresa =>
+              empresa.nombre.toLowerCase().includes(this.busqueda.toLowerCase())
+          );
       }
-    },
-    created() {
-      this.obtenerEmpresas();
+  },
+  methods: {
+      async obtenerEmpresas() {
+          const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+          if (!token) return;
+          try {
+              const response = await fetch("http://localhost:5000/empresas", {
+                  method: "GET",
+                  headers: { "Authorization": `Bearer ${token}` }
+              });
+              if (!response.ok) throw new Error("Error al obtener empresas");
+              this.empresas = await response.json();
+          } catch (error) {
+              console.error("❌ Error al obtener empresas:", error);
+          }
+      },
+      async obtenerRequisitos(empresa) {
+    this.empresaSeleccionada = { ...empresa };
+    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+    if (!token) return;
+
+    try {
+        const response = await fetch(`http://localhost:5000/empresas/${empresa.id}/requisitos`, {
+            method: "GET",
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+
+        if (!response.ok) throw new Error("Error al obtener requisitos");
+
+        const data = await response.json();
+        
+        // 🔹 Si la API no devuelve requisitos, inicializarlo como un array vacío
+        this.empresaSeleccionada.requisitos = data.length ? data : [];
+
+        this.mostrarModalConfigurar = true;
+    } catch (error) {
+        console.error("❌ Error al obtener requisitos:", error);
     }
-  };
-  </script>
-  
-  <style scoped>
-  .empresas-container {
-    padding: 20px;
-    background-color: #f9f9f9;
+},
+async agregarRequisito() {
+    if (!this.nuevoDocumento.nombre.trim() || !this.nuevoDocumento.categoria) return;
+    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+    if (!token) return;
+
+    try {
+        const response = await fetch(`http://localhost:5000/empresas/${this.empresaSeleccionada.id}/requisitos`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                nombre_requisito: this.nuevoDocumento.nombre,
+                categoria: this.nuevoDocumento.categoria
+            })
+        });
+
+        if (!response.ok) throw new Error("Error al agregar requisito");
+
+        // ✅ Volver a obtener los requisitos desde el backend para actualizar la lista en la UI
+        await this.obtenerRequisitos(this.empresaSeleccionada);
+
+        Swal.fire("✅ Agregado", "Requisito agregado correctamente", "success");
+
+        // ✅ Limpiar el formulario
+        this.nuevoDocumento = { nombre: "", categoria: "" };
+
+    } catch (error) {
+        console.error("❌ Error al agregar requisito:", error);
+        Swal.fire("❌ Error", "No se pudo agregar el requisito", "error");
+    }
+},
+
+
+
+    async eliminarRequisito(id, index) {
+        const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+        if (!token) return;
+
+        try {
+            const response = await fetch(`http://localhost:5000/requisitos/${id}`, {
+                method: "DELETE",
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+
+            if (!response.ok) throw new Error("Error al eliminar requisito");
+
+            this.empresaSeleccionada.requisitos.splice(index, 1);
+            Swal.fire("✅ Eliminado", "Requisito eliminado correctamente", "success");
+
+        } catch (error) {
+            console.error("❌ Error al eliminar requisito:", error);
+        }
+    },
+
+    configurarDocumentos(empresa) {
+    this.empresaSeleccionada = { ...empresa };
+
+    // 🔹 Asegurar que `requisitos` siempre esté definido
+    if (!this.empresaSeleccionada.requisitos) {
+        this.empresaSeleccionada.requisitos = [];
+    }
+
+    this.mostrarModalConfigurar = true;
+},
+
+      agregarDocumento() {
+    if (!this.nuevoDocumento.nombre.trim() || !this.nuevoDocumento.categoria) return;
+
+    // 🔹 Verificamos que `requisitos` esté definido
+    if (!this.empresaSeleccionada.requisitos) {
+        this.empresaSeleccionada.requisitos = []; // Inicializar si no existe
+    }
+
+    this.empresaSeleccionada.requisitos.push({ ...this.nuevoDocumento });
+    this.nuevoDocumento = { nombre: "", categoria: "" };
+    this.mostrarFormularioAgregar = false; // Oculta el formulario después de agregar
+},
+
+
+      eliminarDocumento(index) {
+          this.empresaSeleccionada.documentos.splice(index, 1);
+      },
+      async eliminarEmpresa(empresa) {
+          if (empresa.trabajadores_activos > 0) {
+              Swal.fire("Error", "No puedes eliminar una empresa con trabajadores activos", "error");
+              return;
+          }
+          const confirmacion = await Swal.fire({
+              title: "¿Eliminar empresa?",
+              text: "Esta acción es irreversible",
+              icon: "warning",
+              showCancelButton: true,
+              confirmButtonText: "Sí, eliminar",
+              cancelButtonText: "Cancelar"
+          });
+          if (confirmacion.isConfirmed) {
+              this.empresas = this.empresas.filter(e => e !== empresa);
+              Swal.fire("Eliminado", "La empresa ha sido eliminada", "success");
+          }
+      },
+async guardarCambios() {
+    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+    if (!token) return;
+
+    try {
+        const response = await fetch(`http://localhost:5000/empresas/${this.empresaSeleccionada.id}/requisitos`, {
+            method: "PUT",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ requisitos: this.empresaSeleccionada.requisitos })
+        });
+
+        if (!response.ok) throw new Error("Error al guardar requisitos");
+
+        // Actualizar la lista en frontend
+        const index = this.empresas.findIndex(emp => emp.id === this.empresaSeleccionada.id);
+        if (index !== -1) {
+            this.empresas[index].requisitos = [...this.empresaSeleccionada.requisitos];
+        }
+
+        Swal.fire("✅ Guardado", "Requisitos actualizados correctamente", "success");
+        this.mostrarModalConfigurar = false;
+    } catch (error) {
+        console.error("❌ Error al guardar requisitos:", error);
+        Swal.fire("❌ Error", "No se pudieron guardar los requisitos", "error");
+    }
+}
+
+
+  },
+  created() {
+      this.obtenerEmpresas();
   }
-  
-  h1 {
-    text-align: center;
-    color: #134b91;
-  }
-  
-  .tabla-empresas {
+};
+</script>
+
+<style scoped>
+/* Estilo base */
+.app-container {
+    display: flex;
+    height: 100vh;
+    background: #f3f3f3;
+}
+.empresas-container {
+  flex: 1;
+  padding: 40px;
+  text-align: center;
+  color: black;
+  width: 1462px;
+  margin: 20px;
+}
+
+.titulo {
+  margin-bottom: 20px;
+}
+/* Estilo de la barra de búsqueda */
+.barra-busqueda {
+    padding: 10px;
+    width: 50%;
+    margin-top: 20px;
+    margin-bottom: 35px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+}
+
+/* Diseño mejorado de botones */
+.boton {
+    padding: 10px 15px;
+    margin: 5px;
+    border: none;
+    cursor: pointer;
+    border-radius: 8px;
+    font-weight: bold;
+    transition: background 0.3s ease, transform 0.2s ease;
+    box-shadow: 0px 3px 5px rgba(0, 0, 0, 0.15);
+}
+
+.boton:hover {
+    transform: scale(1.05);
+}
+
+.tabla-empresas {
     width: 100%;
     border-collapse: collapse;
-    background: white;
     border-radius: 10px;
-  }
-  
-  th, td {
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.tabla-empresas th, 
+.tabla-empresas td {
     padding: 12px;
-    text-align: left;
     border-bottom: 1px solid #ddd;
-    color: black;
-  }
-  
-  th {
-    background-color: #134b91;
-    color: white;
-  }
-  
-  .config-docs {
-    background-color: #007bff;
-    color: white;
-    padding: 5px 10px;
+    text-align: center;
+}
+
+.agregar { background: #28a745; color: white; }
+.eliminar { 
+  background: #ff6961; 
+  color: white; 
+  border-radius: 8px; 
+  border: none; 
+  box-shadow: 0px 3px 5px rgba(0, 0, 0, 0.15); 
+  padding: 5px 10px; 
+  margin-right: 10px; /* Agrega distancia entre botones */
+  margin-top: 5px;
+}
+
+.config-docs { 
+  background: #134b91; 
+  color: white; 
+  border-radius: 8px; 
+  border: none; 
+  box-shadow: 0px 3px 5px rgba(0, 0, 0, 0.15); 
+  padding: 5px 10px; 
+  margin-top: 5px;
+}
+.editar { background: white; color: black; }
+
+/* Modales mejorados */
+.modal {
+    background: rgb(255, 255, 255);
+    padding: 25px;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    max-width: 500px;
+    width: 100%;
+    color:black;
+}
+
+.modal input,
+.modal select {
+    width: 90%;
+    padding: 10px;
+    margin: 10px 0;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 1rem;
+}
+
+/* Mejor estilo para la lista de documentos */
+ul {
+    list-style: none;
+    padding: 0;
+}
+
+ul li {
+    padding: 10px;
+    background: #f9f9f9;
+    border-radius: 8px;
+    margin: 5px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+ul li button {
     border: none;
-    border-radius: 5px;
+    padding: 6px 10px;
+    border-radius: 6px;
     cursor: pointer;
-  }
-  </style>
-  
+}
+
+/* Modal de fondo */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+</style>

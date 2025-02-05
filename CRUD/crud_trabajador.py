@@ -1,16 +1,18 @@
-from flask import Blueprint, jsonify, request, make_response
+from flask import Blueprint, jsonify, request, make_response, send_file
 from models import db, Trabajador, HistorialAsignacion, Documento
 import logging
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from werkzeug.utils import secure_filename
 import os
 
-UPLOAD_FOLDER = "uploads"  # Carpeta donde se guardarán los archivos (luego cambiar a servidor)
+# 📂 Configuración de almacenamiento de archivos
+UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)  # Crear carpeta si no existe
 
-# Crear un Blueprint para las rutas de Trabajador
+# 🔹 Crear un Blueprint para las rutas de Trabajador
 trabajador_bp = Blueprint('trabajador_bp', __name__)
 
+# 📌 CONTAR TRABAJADORES
 @trabajador_bp.route('/trabajadores/count', methods=['GET'])
 @jwt_required()
 def count_trabajadores():
@@ -20,396 +22,196 @@ def count_trabajadores():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# 📌 OBTENER TODOS LOS TRABAJADORES
 @trabajador_bp.route('/trabajadores', methods=['GET'])
 @jwt_required()
 def obtener_trabajadores():
-    if 'Authorization' not in request.headers:
-        return make_response(jsonify({"msg": "Missing Authorization Header"}), 422)
     try:
-        print(f"📌 Headers recibidos: {request.headers}")  # Verificar si Authorization llega
-        current_user = get_jwt_identity()
-        print(f"✅ Usuario autenticado: {current_user}")
-
-        if not current_user:
-            return jsonify({"error": "Usuario no autenticado"}), 401
-
         trabajadores = Trabajador.query.all()
-        print(f"✅ Total trabajadores obtenidos: {len(trabajadores)}")
-
         return jsonify([{
             "id": t.id,
             "nombre": t.nombre,
+            "apellido": t.apellido,
             "rut": t.rut,
             "cargo": t.cargo,
             "localidad": t.localidad,
             "tipo": t.tipo if t.tipo else "N/A"
         } for t in trabajadores]), 200
-
     except Exception as e:
-        print(f"❌ Error en el backend: {e}")
         return jsonify({"error": str(e)}), 500
-
-@trabajador_bp.route('/trabajadores', methods=['POST'])
-@jwt_required()
-def create_trabajador():
-    data = request.get_json()  # Obtiene JSON del request
-    print("📩 Datos recibidos en backend:", data)  # 🔥 Verifica los datos
-
-    if "localidad" not in data:
-        print("❌ Error: El campo 'localidad' no está en la petición")
-        return jsonify({"error": "Falta el campo 'localidad'"}), 400  # Devuelve error claro
-
-    nuevo_trabajador = Trabajador(
-        nombre=data['nombre'],
-        rut=data['rut'],
-        cargo=data['cargo'],
-        localidad=data['localidad'],  # Aquí ya deberíamos tener localidad
-        tipo=data.get('tipo', "Desconocido")  # Si no tiene tipo, pone "Desconocido"
-    )
-
-    db.session.add(nuevo_trabajador)
-    db.session.commit()
-    return jsonify({'message': 'Trabajador creado correctamente', 'id': nuevo_trabajador.id})
-
-
-@trabajador_bp.route('/trabajadores/<int:id>', methods=['PUT'])
-@jwt_required()
-def update_trabajador(id):
-    data = request.json
-    trabajador = Trabajador.query.get(id)
-    if not trabajador:
-        return jsonify({'message': 'Trabajador no encontrado'}), 404
     
-    trabajador.nombre = data.get('nombre', trabajador.nombre)
-    trabajador.rut = data.get('rut', trabajador.rut)
-    trabajador.cargo = data.get('cargo', trabajador.cargo)
-    trabajador.localidad = data.get('localidad', trabajador.localidad)
-    db.session.commit()
-    return jsonify({'message': 'Trabajador actualizado correctamente'})
-
-@trabajador_bp.route('/trabajadores/<int:id>', methods=['DELETE'])
-@jwt_required()
-def delete_trabajador(id):
-    trabajador = Trabajador.query.get(id)
-    if not trabajador:
-        return jsonify({'message': 'Trabajador no encontrado'}), 404
-    
-    db.session.delete(trabajador)
-    db.session.commit()
-    return jsonify({'message': 'Trabajador eliminado correctamente'})
-
-# Obtener empresas a las que un trabajador ha sido asignado
-@trabajador_bp.route('/trabajadores/<int:trabajador_id>/empresas', methods=['GET'])
-@jwt_required()
-def get_empresas_de_trabajador(trabajador_id):
-    # Verificar si el trabajador existe
-    trabajador = Trabajador.query.get(trabajador_id)
-    if not trabajador:
-        return jsonify({'message': 'Trabajador no encontrado'}), 404
-
-    # Obtener asignaciones de este trabajador
-    asignaciones = HistorialAsignacion.query.filter_by(trabajador_id=trabajador_id).all()
-    empresas = [
-        {
-            'id': a.empresa.id,
-            'nombre': a.empresa.nombre,
-            'localidad': a.empresa.localidad
-        }
-        for a in asignaciones
-    ]
-
-    return jsonify(empresas)
-
-
-@trabajador_bp.route('/trabajadores/busqueda', methods=['GET'])
-@jwt_required()
-def buscar_trabajadores():
-    try:
-        nombre = request.args.get('nombre')
-        rut = request.args.get('rut')
-        cargo = request.args.get('cargo')
-        localidad = request.args.get('localidad')
-        
-        logging.info(f" Búsqueda realizada con filtros: nombre={nombre}, rut={rut}, cargo={cargo}, localidad={localidad}")
-
-        page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 10, type=int)
-
-        if per_page > 100:
-            return jsonify({'error': 'El número máximo de resultados por página es 100'}), 400
-
-        query = Trabajador.query
-        if nombre:
-            query = query.filter(Trabajador.nombre.like(f"%{nombre}%"))
-        if rut:
-            query = query.filter(Trabajador.rut == rut)
-        if cargo:
-            query = query.filter(Trabajador.cargo.like(f"%{cargo}%"))
-        if localidad:
-            query = query.filter(Trabajador.localidad.like(f"%{localidad}%"))
-
-        paginacion = query.paginate(page=page, per_page=per_page)
-
-        return jsonify({
-            'total': paginacion.total,
-            'pages': paginacion.pages,
-            'page': paginacion.page,
-            'per_page': paginacion.per_page,
-            'results': [{
-                'id': t.id,
-                'nombre': t.nombre,
-                'rut': t.rut,
-                'cargo': t.cargo,
-                'localidad': t.localidad
-            } for t in paginacion.items]
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@trabajador_bp.route('/trabajadores/<int:trabajador_id>/documentos', methods=['GET'])
-@jwt_required()
-def obtener_documentos_trabajador(trabajador_id):
-    trabajador = Trabajador.query.get(trabajador_id)
-    if not trabajador:
-        return jsonify({"error": "Trabajador no encontrado"}), 404
-
-    documentos = Documento.query.filter_by(trabajador_id=trabajador_id).all()
-    
-    return jsonify([
-        {
-            "id": doc.id,
-            "nombre": doc.nombre,
-            "categoria": doc.categoria,
-            "fecha_vencimiento": doc.fecha_vencimiento
-        }
-        for doc in documentos
-    ])
-from flask import Blueprint, jsonify, request, make_response
-from models import db, Trabajador, HistorialAsignacion, Documento
-import logging
-from flask_jwt_extended import get_jwt_identity, jwt_required
-
-
-# Crear un Blueprint para las rutas de Trabajador
-trabajador_bp = Blueprint('trabajador_bp', __name__)
-
-@trabajador_bp.route('/trabajadores/count', methods=['GET'])
-@jwt_required()
-def count_trabajadores():
-    try:
-        count = Trabajador.query.count()
-        return jsonify({'count': count}), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@trabajador_bp.route('/trabajadores', methods=['GET'])
-@jwt_required()
-def obtener_trabajadores():
-    if 'Authorization' not in request.headers:
-        return make_response(jsonify({"msg": "Missing Authorization Header"}), 422)
-    try:
-        print(f"📌 Headers recibidos: {request.headers}")  # Verificar si Authorization llega
-        current_user = get_jwt_identity()
-        print(f"✅ Usuario autenticado: {current_user}")
-
-        if not current_user:
-            return jsonify({"error": "Usuario no autenticado"}), 401
-
-        trabajadores = Trabajador.query.all()
-        print(f"✅ Total trabajadores obtenidos: {len(trabajadores)}")
-
-        return jsonify([{
-            "id": t.id,
-            "nombre": t.nombre,
-            "rut": t.rut,
-            "cargo": t.cargo,
-            "localidad": t.localidad,
-            "tipo": t.tipo if t.tipo else "N/A"
-        } for t in trabajadores]), 200
-
-    except Exception as e:
-        print(f"❌ Error en el backend: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@trabajador_bp.route('/trabajadores', methods=['POST'])
-@jwt_required()
-def create_trabajador():
-    data = request.get_json()  # Obtiene JSON del request
-    print("📩 Datos recibidos en backend:", data)  # 🔥 Verifica los datos
-
-    if "localidad" not in data:
-        print("❌ Error: El campo 'localidad' no está en la petición")
-        return jsonify({"error": "Falta el campo 'localidad'"}), 400  # Devuelve error claro
-
-    nuevo_trabajador = Trabajador(
-        nombre=data['nombre'],
-        rut=data['rut'],
-        cargo=data['cargo'],
-        localidad=data['localidad'],  # Aquí ya deberíamos tener localidad
-        tipo=data.get('tipo', "Desconocido")  # Si no tiene tipo, pone "Desconocido"
-    )
-
-    db.session.add(nuevo_trabajador)
-    db.session.commit()
-    return jsonify({'message': 'Trabajador creado correctamente', 'id': nuevo_trabajador.id})
-
-
-@trabajador_bp.route('/trabajadores/<int:id>', methods=['PUT'])
-@jwt_required()
-def update_trabajador(id):
-    data = request.json
-    trabajador = Trabajador.query.get(id)
-    if not trabajador:
-        return jsonify({'message': 'Trabajador no encontrado'}), 404
-    
-    trabajador.nombre = data.get('nombre', trabajador.nombre)
-    trabajador.rut = data.get('rut', trabajador.rut)
-    trabajador.cargo = data.get('cargo', trabajador.cargo)
-    trabajador.localidad = data.get('localidad', trabajador.localidad)
-    db.session.commit()
-    return jsonify({'message': 'Trabajador actualizado correctamente'})
-
-@trabajador_bp.route('/trabajadores/<int:id>', methods=['DELETE'])
-@jwt_required()
-def delete_trabajador(id):
-    trabajador = Trabajador.query.get(id)
-    if not trabajador:
-        return jsonify({'message': 'Trabajador no encontrado'}), 404
-    
-    db.session.delete(trabajador)
-    db.session.commit()
-    return jsonify({'message': 'Trabajador eliminado correctamente'})
-
-# Obtener empresas a las que un trabajador ha sido asignado
-@trabajador_bp.route('/trabajadores/<int:trabajador_id>/empresas', methods=['GET'])
-@jwt_required()
-def get_empresas_de_trabajador(trabajador_id):
-    # Verificar si el trabajador existe
-    trabajador = Trabajador.query.get(trabajador_id)
-    if not trabajador:
-        return jsonify({'message': 'Trabajador no encontrado'}), 404
-
-    # Obtener asignaciones de este trabajador
-    asignaciones = HistorialAsignacion.query.filter_by(trabajador_id=trabajador_id).all()
-    empresas = [
-        {
-            'id': a.empresa.id,
-            'nombre': a.empresa.nombre,
-            'localidad': a.empresa.localidad
-        }
-        for a in asignaciones
-    ]
-
-    return jsonify(empresas)
-
-
-@trabajador_bp.route('/trabajadores/busqueda', methods=['GET'])
-@jwt_required()
-def buscar_trabajadores():
-    try:
-        nombre = request.args.get('nombre')
-        rut = request.args.get('rut')
-        cargo = request.args.get('cargo')
-        localidad = request.args.get('localidad')
-        
-        logging.info(f" Búsqueda realizada con filtros: nombre={nombre}, rut={rut}, cargo={cargo}, localidad={localidad}")
-
-        page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 10, type=int)
-
-        if per_page > 100:
-            return jsonify({'error': 'El número máximo de resultados por página es 100'}), 400
-
-        query = Trabajador.query
-        if nombre:
-            query = query.filter(Trabajador.nombre.like(f"%{nombre}%"))
-        if rut:
-            query = query.filter(Trabajador.rut == rut)
-        if cargo:
-            query = query.filter(Trabajador.cargo.like(f"%{cargo}%"))
-        if localidad:
-            query = query.filter(Trabajador.localidad.like(f"%{localidad}%"))
-
-        paginacion = query.paginate(page=page, per_page=per_page)
-
-        return jsonify({
-            'total': paginacion.total,
-            'pages': paginacion.pages,
-            'page': paginacion.page,
-            'per_page': paginacion.per_page,
-            'results': [{
-                'id': t.id,
-                'nombre': t.nombre,
-                'rut': t.rut,
-                'cargo': t.cargo,
-                'localidad': t.localidad
-            } for t in paginacion.items]
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@trabajador_bp.route('/trabajadores/<int:trabajador_id>/documentos', methods=['GET'])
-@jwt_required()
-def obtener_documentos_trabajador(trabajador_id):
-    trabajador = Trabajador.query.get(trabajador_id)
-    if not trabajador:
-        return jsonify({"error": "Trabajador no encontrado"}), 404
-
-    documentos = Documento.query.filter_by(trabajador_id=trabajador_id).all()
-    
-    return jsonify([
-        {
-            "id": doc.id,
-            "nombre": doc.nombre,
-            "categoria": doc.categoria,
-            "fecha_vencimiento": doc.fecha_vencimiento
-        }
-        for doc in documentos
-    ])
-@trabajador_bp.route('/trabajadores/<int:id>', methods=['GET', 'PUT', 'DELETE'])
+    # 📌 OBTENER UN TRABAJADOR ESPECÍFICO
+@trabajador_bp.route('/trabajadores/<int:id>', methods=['GET'])
 @jwt_required()
 def obtener_trabajador(id):
+        try:
+            trabajador = Trabajador.query.get(id)
+            if not trabajador:
+                return jsonify({'error': 'Trabajador no encontrado'}), 404
+
+            return jsonify({
+                "id": trabajador.id,
+                "nombre": trabajador.nombre,
+                "apellido": trabajador.apellido,
+                "rut": trabajador.rut,
+                "cargo": trabajador.cargo,
+                "localidad": trabajador.localidad,
+                "tipo": trabajador.tipo if trabajador.tipo else "N/A"
+            }), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+# 📌 CREAR UN NUEVO TRABAJADOR
+@trabajador_bp.route('/trabajadores', methods=['POST'])
+@jwt_required()
+def create_trabajador():
+    data = request.get_json()
+    required_fields = ["nombre", "apellido", "rut", "cargo", "localidad"]
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"error": f"Falta el campo '{field}'"}), 400
+
+    nuevo_trabajador = Trabajador(
+        nombre=data['nombre'],
+        apellido=data['apellido'],
+        rut=data['rut'],
+        cargo=data['cargo'],
+        localidad=data['localidad'],
+        tipo=data.get('tipo', "Desconocido")
+    )
+
+    db.session.add(nuevo_trabajador)
+    db.session.commit()
+    return jsonify({'message': 'Trabajador creado correctamente', 'id': nuevo_trabajador.id}), 201
+
+# 📌 ACTUALIZAR UN TRABAJADOR
+@trabajador_bp.route('/trabajadores/<int:id>', methods=['PUT'])
+@jwt_required()
+def update_trabajador(id):
+    data = request.json
     trabajador = Trabajador.query.get(id)
     if not trabajador:
-        return jsonify({'error': 'Trabajador no encontrado'}), 404
-    return jsonify({
-        'id': trabajador.id,
-        'nombre': trabajador.nombre,
-        'rut': trabajador.rut,
-        'cargo': trabajador.cargo,
-        'localidad': trabajador.localidad
-    }), 200
+        return jsonify({'message': 'Trabajador no encontrado'}), 404
+
+    trabajador.nombre = data.get('nombre', trabajador.nombre)
+    trabajador.apellido = data.get('apellido', trabajador.apellido)
+    trabajador.rut = data.get('rut', trabajador.rut)
+    trabajador.cargo = data.get('cargo', trabajador.cargo)
+    trabajador.localidad = data.get('localidad', trabajador.localidad)
+    db.session.commit()
+    return jsonify({'message': 'Trabajador actualizado correctamente'}), 200
+
+# 📌 ELIMINAR UN TRABAJADOR
+@trabajador_bp.route('/trabajadores/<int:id>', methods=['DELETE'])
+@jwt_required()
+def delete_trabajador(id):
+    trabajador = Trabajador.query.get(id)
+    if not trabajador:
+        return jsonify({'message': 'Trabajador no encontrado'}), 404
+
+    db.session.delete(trabajador)
+    db.session.commit()
+    return jsonify({'message': 'Trabajador eliminado correctamente'}), 200
+
+# 📌 OBTENER DOCUMENTOS DE UN TRABAJADOR
+@trabajador_bp.route('/documentos', methods=['GET'])
+@jwt_required()
+def obtener_documentos_trabajador():
+    trabajador_id = request.args.get("trabajador_id")  # 🔹 Obtener desde la URL
+    
+    if not trabajador_id:
+        return jsonify({"error": "Falta el trabajador_id"}), 400  # ✅ Mensaje de error claro
+
+    trabajador = Trabajador.query.get(trabajador_id)
+    if not trabajador:
+        return jsonify({"error": "Trabajador no encontrado"}), 404
+
+    documentos = Documento.query.filter_by(trabajador_id=trabajador_id).all()
+    
+    return jsonify([
+        {
+            "id": doc.id,
+            "nombre_archivo": doc.nombre_archivo,
+            "categoria": doc.categoria,
+            "fecha_vencimiento": doc.fecha_vencimiento,
+            "ruta_archivo": doc.ruta_archivo
+        }
+        for doc in documentos
+    ]), 200
 
 
-
+# 📌 SUBIR DOCUMENTO
 @trabajador_bp.route('/trabajadores/<int:trabajador_id>/documentos', methods=['POST'])
 @jwt_required()
 def subir_documento(trabajador_id):
     if 'archivo' not in request.files:
-        return jsonify({"error": "No se envió ningún archivo."}), 400
+        return jsonify({"error": "No se proporcionó ningún archivo"}), 400
 
     archivo = request.files['archivo']
+    
     if archivo.filename == '':
-        return jsonify({"error": "El archivo está vacío."}), 400
+        return jsonify({"error": "El archivo no tiene nombre válido"}), 400
 
-    trabajador = Trabajador.query.get(trabajador_id)
-    if not trabajador:
-        return jsonify({"error": "Trabajador no encontrado"}), 404
+    # 🔹 Obtener nombre del archivo de forma segura
+    nombre_archivo = secure_filename(archivo.filename)
 
-    # Guardar archivo temporalmente (luego cambiar a almacenamiento externo)
-    filename = secure_filename(archivo.filename)
-    filepath = os.path.join(UPLOAD_FOLDER, filename)
-    archivo.save(filepath)
+    # 🔹 Verificar si ya existe un documento con el mismo nombre
+    documento_existente = Documento.query.filter_by(
+        trabajador_id=trabajador_id, 
+        nombre_archivo=nombre_archivo
+    ).first()
 
-    # Guardar en la base de datos
+    if documento_existente:
+        return jsonify({"error": "Ya existe un documento con este nombre"}), 400
+
+    # 🔹 Guardar el archivo en la carpeta local
+    ruta_archivo = os.path.join(UPLOAD_FOLDER, nombre_archivo).replace("\\", "/")
+    archivo.save(ruta_archivo)
+
+    # 🔹 Guardar el documento en la base de datos
     nuevo_documento = Documento(
         trabajador_id=trabajador_id,
-        nombre_archivo=filename,
-        categoria=request.form['categoria'],
-        fecha_vencimiento=request.form['fecha_vencimiento']
+        nombre_archivo=nombre_archivo,
+        categoria=request.form.get("categoria"),
+        ruta_archivo=ruta_archivo,
+        fecha_vencimiento=request.form.get("fecha_vencimiento")
     )
-    
+
     db.session.add(nuevo_documento)
     db.session.commit()
 
-    return jsonify({"message": "Documento subido correctamente.", "id": nuevo_documento.id}), 201
+    return jsonify({
+        "message": "✅ Documento subido exitosamente",
+        "nombre_archivo": nuevo_documento.nombre_archivo
+    }), 201
+
+# 📌 ELIMINAR DOCUMENTO
+@trabajador_bp.route('/documentos/<int:documento_id>', methods=['DELETE'])
+@jwt_required()
+def eliminar_documento(documento_id):
+    documento = Documento.query.get(documento_id)
+    if not documento:
+        return jsonify({"error": "Documento no encontrado"}), 404
+
+    # 🔹 Eliminar archivo del servidor si existe
+    if documento.ruta_archivo and os.path.exists(documento.ruta_archivo):
+        os.remove(documento.ruta_archivo)
+
+    db.session.delete(documento)
+    db.session.commit()
+
+    return jsonify({"message": "✅ Documento eliminado correctamente"}), 200
+
+# 📌 DESCARGAR DOCUMENTO
+@trabajador_bp.route('/documentos/<int:documento_id>/descargar', methods=['GET'])
+@jwt_required()
+def descargar_documento(documento_id):
+    documento = Documento.query.get(documento_id)
+    if not documento:
+        return jsonify({"error": "Documento no encontrado"}), 404
+
+    if not documento.ruta_archivo or not os.path.exists(documento.ruta_archivo):
+        return jsonify({"error": "Archivo no encontrado en el servidor"}), 404
+
+    return send_file(documento.ruta_archivo, as_attachment=True)
+

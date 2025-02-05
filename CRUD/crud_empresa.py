@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from models import db, Empresa, HistorialAsignacion
+from models import db, Empresa, HistorialAsignacion, RequisitoEmpresa
 from flask_jwt_extended import jwt_required
 
 # Crear un Blueprint para Empresa
@@ -142,3 +142,70 @@ def trabajadores_asignados_a_empresa(empresa_id):
     ]
 
     return jsonify(trabajadores)
+
+@empresa_bp.route('/empresas/<int:empresa_id>/requisitos', methods=['GET'])
+@jwt_required()
+def obtener_requisitos(empresa_id):
+    empresa = Empresa.query.get(empresa_id)
+    if not empresa:
+        return jsonify({"error": "Empresa no encontrada"}), 404
+    
+    requisitos = RequisitoEmpresa.query.filter_by(empresa_id=empresa_id).all()
+    return jsonify([{
+        "id": req.id,
+        "nombre_requisito": req.nombre_requisito,
+        "categoria": req.categoria
+    } for req in requisitos]), 200
+
+@empresa_bp.route('/empresas/<int:empresa_id>/requisitos', methods=['POST'])
+@jwt_required()
+def agregar_requisito(empresa_id):
+    data = request.get_json()
+
+    if not data.get("nombre_requisito") or not data.get("categoria"):
+        return jsonify({"error": "Faltan datos"}), 400
+
+    empresa = Empresa.query.get(empresa_id)
+    if not empresa:
+        return jsonify({"error": "Empresa no encontrada"}), 404
+
+    nuevo_requisito = RequisitoEmpresa(
+        empresa_id=empresa_id,
+        nombre_requisito=data["nombre_requisito"],
+        categoria=data["categoria"]
+    )
+
+    db.session.add(nuevo_requisito)
+    db.session.commit()
+
+    return jsonify({"message": "Requisito agregado correctamente"}), 201
+
+
+@empresa_bp.route('/requisitos/<int:requisito_id>', methods=['DELETE'])
+@jwt_required()
+def eliminar_requisito(requisito_id):
+    requisito = RequisitoEmpresa.query.get(requisito_id)
+    if not requisito:
+        return jsonify({"error": "Requisito no encontrado"}), 404
+    
+    db.session.delete(requisito)
+    db.session.commit()
+
+    return jsonify({"message": "Requisito eliminado correctamente"}), 200
+
+@empresa_bp.route('/empresas/<int:empresa_id>/requisitos', methods=['PUT'])
+@jwt_required()
+def actualizar_requisitos(empresa_id):
+    data = request.json
+    empresa = Empresa.query.get(empresa_id)
+
+    if not empresa:
+        return jsonify({"error": "Empresa no encontrada"}), 404
+
+    if "requisitos" not in data:
+        return jsonify({"error": "No se enviaron requisitos"}), 400
+
+    empresa.requisitos = data["requisitos"]
+    db.session.commit()
+
+    return jsonify({"message": "Requisitos actualizados correctamente"}), 200
