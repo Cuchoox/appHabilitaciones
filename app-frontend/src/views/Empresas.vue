@@ -3,12 +3,12 @@
         <Sidebar />
         <div class="empresas-container">
             <h1>Lista de Empresas</h1>
-            
+
             <!-- Barra de búsqueda -->
             <input type="text" v-model="busqueda" placeholder="Buscar empresa..." class="barra-busqueda" />
-            
+
             <button class="boton agregar" @click="mostrarModalAgregar = true">➕ Agregar Empresa</button>
-            
+
             <table class="tabla-empresas">
                 <thead>
                     <tr>
@@ -32,52 +32,52 @@
                 </tbody>
             </table>
         </div>
-  
+
         <!-- Modal Agregar Empresa -->
         <div v-if="mostrarModalAgregar" class="modal-overlay">
             <div class="modal">
                 <h2>Agregar Empresa</h2>
                 <input type="text" v-model="nuevaEmpresa" placeholder="Nombre de la empresa" />
-                <button class="boton guardar" @click="agregarRequisito">✅ Guardar</button>
+                <button class="boton guardar" @click="agregarEmpresa">✅ Guardar</button>
                 <button class="cerrar-modal" @click="mostrarModalAgregar = false">❌ Cerrar</button>
             </div>
         </div>
-  
+
         <!-- Modal Configurar Documentos -->
         <div v-if="mostrarModalConfigurar" class="modal-overlay">
             <div class="modal">
                 <h2>Configurar Documentos para {{ empresaSeleccionada.nombre }}</h2>
 
+                <!-- Botones para Editar y Agregar Requisitos -->
+                <button class="editar" @click="editarDocumentos = !editarDocumentos">✏️ Editar</button>
+                <button class="boton agregar-requisito" @click="mostrarFormularioAgregar = true">➕ Agregar Requisito</button>
 
-
-                <!-- Botón Editar (habilita eliminar requisitos pero NO muestra formulario) -->
-<button class="editar" @click="editarDocumentos = !editarDocumentos">✏️ Editar</button>
-
-<!-- Botón Agregar Requisito (muestra el formulario correctamente) -->
-<button class="boton agregar-requisito" @click="mostrarFormularioAgregar = true">➕ Agregar Requisito</button>
-
-<!-- Formulario solo aparece si se hace clic en "Agregar Requisito" -->
-<div v-if="mostrarFormularioAgregar">
-    <input type="text" v-model="nuevoDocumento.nombre" placeholder="Nombre del documento" />
-    <select v-model="nuevoDocumento.categoria">
-        <option disabled value="">Seleccione una categoría</option>
-        <option>Personal</option>
-        <option>Licencias</option>
-        <option>Certificaciones</option>
-    </select>
-    <button class="boton agregar-doc" @click="agregarDocumento">✅ Guardar</button>
-</div>
-
-
-
-<div v-if="editarDocumentos">
+                <!-- Formulario de Agregar Requisito -->
+                <div v-if="mostrarFormularioAgregar">
+                    <input type="text" v-model="nuevoDocumento.nombre" placeholder="Nombre del documento" />
+                    <select v-model="nuevoDocumento.categoria">
+                        <option disabled value="">Seleccione una categoría</option>
+                        <option>Personal</option>
+                        <option>Licencias</option>
+                        <option>Certificaciones</option>
+                    </select>
+                    <button class="boton agregar-doc" @click="agregarRequisito">➕ Guardar</button>
                 </div>
+
+                <!-- Lista de Requisitos -->
+                <ul>
+                    <li v-for="(doc, index) in empresaSeleccionada.requisitos" :key="index">
+                        {{ doc.nombre_requisito }} - {{ doc.categoria }}
+                        <button class="eliminar" @click="eliminarRequisito(index)">❌</button>
+                    </li>
+                </ul>
+
                 <button class="boton guardar-cambios" @click="guardarCambios">💾 Guardar Cambios</button>
                 <button class="cerrar-modal" @click="mostrarModalConfigurar = false">❌ Cerrar</button>
             </div>
         </div>
     </div>
-  </template>
+</template>
   
 
 <script>
@@ -122,7 +122,7 @@ export default {
           }
       },
       async obtenerRequisitos(empresa) {
-    this.empresaSeleccionada = { ...empresa };
+    this.empresaSeleccionada = { ...empresa }; 
     const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
     if (!token) return;
 
@@ -136,14 +136,18 @@ export default {
 
         const data = await response.json();
         
-        // 🔹 Si la API no devuelve requisitos, inicializarlo como un array vacío
+        // Asegurar que `requisitos` no sea `undefined`
         this.empresaSeleccionada.requisitos = data.length ? data : [];
 
+        console.log("📥 Requisitos obtenidos:", this.empresaSeleccionada.requisitos);
+
         this.mostrarModalConfigurar = true;
+
     } catch (error) {
         console.error("❌ Error al obtener requisitos:", error);
     }
 },
+
 async agregarRequisito() {
     if (!this.nuevoDocumento.nombre.trim() || !this.nuevoDocumento.categoria) return;
     const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
@@ -246,7 +250,7 @@ async agregarRequisito() {
               Swal.fire("Eliminado", "La empresa ha sido eliminada", "success");
           }
       },
-async guardarCambios() {
+      async guardarCambios() {
     const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
     if (!token) return;
 
@@ -262,14 +266,13 @@ async guardarCambios() {
 
         if (!response.ok) throw new Error("Error al guardar requisitos");
 
-        // Actualizar la lista en frontend
-        const index = this.empresas.findIndex(emp => emp.id === this.empresaSeleccionada.id);
-        if (index !== -1) {
-            this.empresas[index].requisitos = [...this.empresaSeleccionada.requisitos];
-        }
+        Swal.fire("✅ Guardado", "Todos los requisitos se han guardado correctamente", "success");
 
-        Swal.fire("✅ Guardado", "Requisitos actualizados correctamente", "success");
+        // 🔹 Volver a obtener los requisitos desde el backend para asegurarse de que están actualizados
+        await this.obtenerRequisitos(this.empresaSeleccionada);
+
         this.mostrarModalConfigurar = false;
+
     } catch (error) {
         console.error("❌ Error al guardar requisitos:", error);
         Swal.fire("❌ Error", "No se pudieron guardar los requisitos", "error");
