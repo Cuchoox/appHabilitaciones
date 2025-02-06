@@ -55,20 +55,31 @@
         <button class="boton abrir-modal" @click="mostrarModalHabilitar = true">✅ Habilitar Trabajador</button>
       </div>
 
-      <!-- Modal Subir Documento -->
-      <div v-if="mostrarModalSubir" class="modal-overlay">
-        <div class="modal">
-          <h2>Subir Documento</h2>
-          <input type="file" @change="seleccionarArchivo" class="input-archivo" accept=".jpg, .png, .pdf"/>
-          <input type="date" v-model="fechaVencimiento" class="input-fecha" required />
-          <select v-model="categoriaSeleccionada" class="select-categoria" required>
-            <option disabled value="">Seleccione una categoría</option>
-            <option v-for="categoria in categorias" :key="categoria">{{ categoria }}</option>
-          </select>
-          <button class="boton subir" @click="subirDocumento">📤 Subir Documento</button>
-          <button class="boton cerrar-modal" @click="mostrarModalSubir = false">❌ Cerrar</button>
-        </div>
-      </div>
+    <!-- Modal Subir Documento -->
+<!-- Modal Subir Documento -->
+<div v-if="mostrarModalSubir" class="modal-overlay">
+  <div class="modal">
+    <h2>Subir Documento</h2>
+    <input type="file" @change="seleccionarArchivo" class="input-archivo" accept=".jpg, .png, .pdf"/>
+    <input type="date" v-model="fechaVencimiento" class="input-fecha" required />
+
+    <!-- 🔹 Agregar dropdown con los tipos disponibles -->
+    <select v-model="tipoDocumentoSeleccionado" class="select-categoria" required>
+      <option disabled value="">Seleccione el tipo de documento</option>
+      <option v-for="tipo in tiposDocumentos" :key="tipo">{{ tipo }}</option>
+    </select>
+
+    <select v-model="categoriaSeleccionada" class="select-categoria" required>
+      <option disabled value="">Seleccione una categoría</option>
+      <option v-for="categoria in categorias" :key="categoria">{{ categoria }}</option>
+    </select>
+    
+    <button class="boton subir" @click="subirDocumento">📤 Subir Documento</button>
+    <button class="boton cerrar-modal" @click="mostrarModalSubir = false">❌ Cerrar</button>
+  </div>
+</div>
+
+
       
       <!-- Modal Habilitar Trabajador -->
       <div v-if="mostrarModalHabilitar" class="modal-overlay">
@@ -106,6 +117,8 @@ export default {
       mostrarModalSubir: false,
       mostrarModalHabilitar: false,
       busquedaDocumento: "",
+      tiposDocumentos: [],  // 🔹 Lista de tipos de documentos obtenidos del backend
+    tipoDocumentoSeleccionado: "",  // 🔹 Tipo seleccionado por el usuario
     };
   },
   computed: {
@@ -154,46 +167,39 @@ export default {
     },
 
     async subirDocumento() {
-  if (!this.archivoSeleccionado || !this.fechaVencimiento || !this.categoriaSeleccionada) {
-    Swal.fire("⚠️ Error", "Todos los campos son obligatorios.", "error");
-    return;
-  }
-
-  const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
-  if (!token) {
-    Swal.fire("⚠️ Error", "No tienes autorización. Inicia sesión nuevamente.", "error");
-    this.$router.push("/login");
-    return;
-  }
-
-  const formData = new FormData();
-  formData.append("archivo", this.archivoSeleccionado);
-  formData.append("nombre_archivo", this.archivoSeleccionado.name);
-  formData.append("categoria", this.categoriaSeleccionada);
-  formData.append("fecha_vencimiento", this.fechaVencimiento);
-
-  try {
-    const response = await fetch(`http://localhost:5000/trabajadores/${this.trabajador_id}/documentos`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token}`  // 🔹 Importante: Sin `Content-Type` porque es FormData
-      },
-      body: formData
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Error al subir el documento.");
+    if (!this.archivoSeleccionado || !this.fechaVencimiento || !this.tipoDocumentoSeleccionado) {
+      Swal.fire("⚠️ Error", "Todos los campos son obligatorios.", "error");
+      return;
     }
 
-    Swal.fire("✅ Éxito", "Documento subido correctamente.", "success");
-    this.obtenerDocumentos();
-    this.mostrarModalSubir = false; // 🔹 Cerrar modal después de subir el documento
-  } catch (error) {
-    console.error("❌ Error al subir documento:", error);
-    Swal.fire("⚠️ Error", error.message, "error");
-  }
-},
+    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+    if (!token) return;
+
+    const formData = new FormData();
+    formData.append("archivo", this.archivoSeleccionado);
+    formData.append("nombre_archivo", this.archivoSeleccionado.name);
+    formData.append("categoria", this.categoriaSeleccionada);
+    formData.append("fecha_vencimiento", this.fechaVencimiento);
+    formData.append("tipo", this.tipoDocumentoSeleccionado); // 🔹 Nuevo campo
+
+    try {
+      const response = await fetch(`http://localhost:5000/trabajadores/${this.trabajador_id}/documentos`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}"` },
+        body: formData
+      });
+
+      if (!response.ok) throw new Error("Error al subir documento");
+
+      Swal.fire("✅ Éxito", "Documento subido correctamente.", "success");
+      this.obtenerDocumentos();
+      this.mostrarModalSubir = false;
+    } catch (error) {
+      console.error("❌ Error al subir documento:", error);
+      Swal.fire("❌ Error", "Hubo un problema al subir el documento.", "error");
+    }
+  },
+
 
 seleccionarArchivo(event) {
     this.archivoSeleccionado = event.target.files[0];
@@ -326,15 +332,9 @@ seleccionarCategoria(categoria) {
   }
 
   const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
-  if (!token) {
-    Swal.fire("⚠️ Error", "No tienes autorización. Inicia sesión nuevamente.", "error");
-    this.$router.push("/login");
-    return;
-  }
+  if (!token) return;
 
   try {
-    console.log("📦 Enviando petición para generar .rar...");
-    
     const response = await fetch(`http://localhost:5000/trabajadores/${this.trabajador_id}/generar-rar`, {
       method: "POST",
       headers: {
@@ -344,29 +344,50 @@ seleccionarCategoria(categoria) {
       body: JSON.stringify({ empresa_id: this.empresaSeleccionada })
     });
 
-    if (!response.ok) {
+    if (response.status === 400) {
       const errorData = await response.json();
-      throw new Error(errorData.error || "Error al generar el .rar.");
+      Swal.fire("⚠️ Error", `Faltan documentos: ${errorData.faltantes.join(", ")}`, "error");
+      return;
     }
 
-    // Descargar el archivo .rar generado
+    if (!response.ok) throw new Error("Error al generar el .rar");
+
+    // Descargar el archivo
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Trabajador_${this.trabajador_id}.rar`;
+    a.download = `trabajador_${this.trabajador_id}.zip`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     window.URL.revokeObjectURL(url);
 
     Swal.fire("✅ Éxito", "El archivo .rar se ha generado correctamente.", "success");
-    this.mostrarModalHabilitar = false; // Cerrar modal después de la acción
   } catch (error) {
     console.error("❌ Error al generar .rar:", error);
-    Swal.fire("⚠️ Error", error.message, "error");
+    Swal.fire("❌ Error", "Hubo un problema al generar el archivo.", "error");
   }
-}
+},
+
+async obtenerTiposDocumentos() {
+    try {
+      const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+      if (!token) return;
+
+      const response = await fetch("http://localhost:5000/documentos/tipos", {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+
+      if (!response.ok) throw new Error("Error al obtener tipos de documentos");
+
+      this.tiposDocumentos = await response.json();
+    } catch (error) {
+      console.error("❌ Error al obtener tipos de documentos:", error);
+    }
+  },
+
 
 
   },
@@ -374,6 +395,7 @@ seleccionarCategoria(categoria) {
     this.obtenerTrabajador();
     this.obtenerDocumentos();
     this.obtenerEmpresas();
+    this.obtenerTiposDocumentos();
   }
 };
 </script>

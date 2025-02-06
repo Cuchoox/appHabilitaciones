@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, send_file
-from models import db, Documento, Trabajador, Empresa
+from models import RequisitoEmpresa, db, Documento, Trabajador, Empresa
 from flask_jwt_extended import jwt_required
 import os
 import shutil
@@ -83,44 +83,44 @@ def delete_documento(id):
     return jsonify({'message': 'Documento eliminado correctamente'})
 
 
-@documento_bp.route('/generar-rar/<int:trabajador_id>/<int:empresa_id>', methods=['GET'])
+# 📌 ELIMINAR DOCUMENTO
+@documento_bp.route('/documentos/<int:documento_id>', methods=['DELETE'])
 @jwt_required()
-def generar_rar(trabajador_id, empresa_id):
-    # Obtener datos del trabajador y empresa
-    trabajador = Trabajador.query.get_or_404(trabajador_id)
-    empresa = Empresa.query.get_or_404(empresa_id)
+def eliminar_documento(documento_id):
+    documento = Documento.query.get(documento_id)
+    if not documento:
+        return jsonify({"error": "Documento no encontrado"}), 404
 
-    # Obtener los requisitos de la empresa
-    requisitos_empresa = {req.nombre_requisito for req in empresa.requisitos}
+    # 🔹 Eliminar archivo del servidor si existe
+    if documento.ruta_archivo and os.path.exists(documento.ruta_archivo):
+        os.remove(documento.ruta_archivo)
 
-    # Obtener los documentos del trabajador
-    documentos_trabajador = {doc.tipo: doc for doc in trabajador.documentos}
+    db.session.delete(documento)
+    db.session.commit()
 
-    # Verificar si el trabajador tiene todos los documentos requeridos
-    documentos_faltantes = requisitos_empresa - documentos_trabajador.keys()
+    return jsonify({"message": "✅ Documento eliminado correctamente"}), 200
 
-    if documentos_faltantes:
-        return jsonify({"error": "Faltan documentos", "documentos_faltantes": list(documentos_faltantes)}), 400
+# 📌 DESCARGAR DOCUMENTO
+@documento_bp.route('/documentos/<int:documento_id>/descargar', methods=['GET'])
+@jwt_required()
+def descargar_documento(documento_id):
+    documento = Documento.query.get(documento_id)
+    if not documento:
+        return jsonify({"error": "Documento no encontrado"}), 404
 
-    # Crear carpeta temporal para el .rar
-    temp_folder = f"temp_rar_{trabajador.id}"
-    os.makedirs(temp_folder, exist_ok=True)
+    if not documento.ruta_archivo or not os.path.exists(documento.ruta_archivo):
+        return jsonify({"error": "Archivo no encontrado en el servidor"}), 404
 
-    # Copiar y renombrar archivos
-    for tipo_doc, documento in documentos_trabajador.items():
-        origen = os.path.join("uploads", documento.ruta_archivo)  # Ruta de subida
-        destino = os.path.join(temp_folder, f"{documento.nombre_archivo}-{tipo_doc}{os.path.splitext(documento.ruta_archivo)[1]}")
-        shutil.copy(origen, destino)
+    return send_file(documento.ruta_archivo, as_attachment=True)
 
-    # Nombre del archivo .rar
-    rar_filename = f"{trabajador.nombre}.rar"
-    rar_path = os.path.join("uploads", rar_filename)
 
-    # Crear el .rar
-    with rarfile.RarFile(rar_path, "w") as rar:
-        rar.add(temp_folder, arcname=os.path.basename(temp_folder))
+@documento_bp.route("/documentos/tipos", methods=["GET"])
+@jwt_required()
+def obtener_tipos_documentos():
+    # 🔹 Obtener todos los requisitos únicos de todas las empresas
+    tipos_documentos = db.session.query(RequisitoEmpresa.nombre_requisito).distinct().all()
 
-    # Limpiar archivos temporales
-    shutil.rmtree(temp_folder)
+    # Convertir a lista simple
+    tipos_documentos = [tipo[0] for tipo in tipos_documentos]
 
-    return send_file(rar_path, as_attachment=True)
+    return jsonify(tipos_documentos)

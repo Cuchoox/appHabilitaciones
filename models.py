@@ -34,7 +34,11 @@ class Documento(db.Model):
     ruta_archivo = db.Column(db.String(255), nullable=False)
     creado_en = db.Column(db.DateTime, default=db.func.now())
     fecha_vencimiento = db.Column(db.Date)
+    tipo = db.Column(db.String(100), nullable=False)  # 🔹 Nuevo campo
+
     trabajador = db.relationship('Trabajador', backref='documentos', lazy=True)
+    def __repr__(self):
+     return f"<Documento {self.nombre_archivo} ({self.tipo})>"
 
 class HistorialAsignacion(db.Model):
     __tablename__ = 'historial_asignaciones'

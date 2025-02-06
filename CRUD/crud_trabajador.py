@@ -1,9 +1,13 @@
+import zipfile
 from flask import Blueprint, jsonify, request, make_response, send_file
-from models import db, Trabajador, HistorialAsignacion, Documento
+from models import Empresa, db, Trabajador, HistorialAsignacion, Documento
 import logging
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from werkzeug.utils import secure_filename
 import os
+import shutil
+import tempfile
+
 
 # 📂 Configuración de almacenamiento de archivos
 UPLOAD_FOLDER = "uploads"
@@ -140,78 +144,105 @@ def obtener_documentos_trabajador():
     ]), 200
 
 
-# 📌 SUBIR DOCUMENTO
-@trabajador_bp.route('/trabajadores/<int:trabajador_id>/documentos', methods=['POST'])
+
+@trabajador_bp.route("/trabajadores/<int:trabajador_id>/documentos", methods=["POST"])
 @jwt_required()
 def subir_documento(trabajador_id):
-    if 'archivo' not in request.files:
-        return jsonify({"error": "No se proporcionó ningún archivo"}), 400
+    if "archivo" not in request.files:
+        return jsonify({"error": "No se ha enviado un archivo"}), 400
 
-    archivo = request.files['archivo']
+    archivo = request.files["archivo"]
+    if archivo.filename == "":
+        return jsonify({"error": "No se ha seleccionado ningún archivo"}), 400
+
+    data = request.form
+    categoria = data.get("categoria")
+    fecha_vencimiento = data.get("fecha_vencimiento")
+    tipo_documento = data.get("tipo")
+
+    # Obtener el nombre del trabajador
+    trabajador = Trabajador.query.get(trabajador_id)
+    if not trabajador:
+        return jsonify({"error": "Trabajador no encontrado"}), 404
+
+    # Generar el nombre del archivo: "Tipo - Nombre Apellido.extensión"
+    extension = archivo.filename.rsplit(".", 1)[-1]
+    nuevo_nombre = f"{tipo_documento} - {trabajador.nombre} {trabajador.apellido}.{extension}"
     
-    if archivo.filename == '':
-        return jsonify({"error": "El archivo no tiene nombre válido"}), 400
+    # Generar ruta del archivo
+    ruta_archivo = os.path.join(UPLOAD_FOLDER, secure_filename(nuevo_nombre))
+    
+    # 🔹 Agregar print para depuración
+    print(f"📂 Guardando archivo en: {ruta_archivo}")
 
-    # 🔹 Obtener nombre del archivo de forma segura
-    nombre_archivo = secure_filename(archivo.filename)
-
-    # 🔹 Verificar si ya existe un documento con el mismo nombre
-    documento_existente = Documento.query.filter_by(
-        trabajador_id=trabajador_id, 
-        nombre_archivo=nombre_archivo
-    ).first()
-
-    if documento_existente:
-        return jsonify({"error": "Ya existe un documento con este nombre"}), 400
-
-    # 🔹 Guardar el archivo en la carpeta local
-    ruta_archivo = os.path.join(UPLOAD_FOLDER, nombre_archivo).replace("\\", "/")
+    # Guardar el archivo en el servidor
     archivo.save(ruta_archivo)
 
-    # 🔹 Guardar el documento en la base de datos
+    # Crear el objeto Documento y asignar ruta_archivo
     nuevo_documento = Documento(
         trabajador_id=trabajador_id,
-        nombre_archivo=nombre_archivo,
-        categoria=request.form.get("categoria"),
-        ruta_archivo=ruta_archivo,
-        fecha_vencimiento=request.form.get("fecha_vencimiento")
+        nombre_archivo=nuevo_nombre,
+        categoria=categoria,
+        fecha_vencimiento=fecha_vencimiento,
+        tipo=tipo_documento,
+        ruta_archivo=ruta_archivo  # ✅ Asegurarse de que no sea None
     )
 
+    # Agregar a la BD y confirmar
     db.session.add(nuevo_documento)
     db.session.commit()
 
-    return jsonify({
-        "message": "✅ Documento subido exitosamente",
-        "nombre_archivo": nuevo_documento.nombre_archivo
-    }), 201
+    return jsonify({"mensaje": "Documento subido exitosamente", "documento": nuevo_nombre}), 201
 
-# 📌 ELIMINAR DOCUMENTO
-@trabajador_bp.route('/documentos/<int:documento_id>', methods=['DELETE'])
+@trabajador_bp.route("/trabajadores/<int:trabajador_id>/generar-rar", methods=["POST"])
 @jwt_required()
-def eliminar_documento(documento_id):
-    documento = Documento.query.get(documento_id)
-    if not documento:
-        return jsonify({"error": "Documento no encontrado"}), 404
+def generar_rar(trabajador_id):
+    data = request.get_json()
+    empresa_id = data.get("empresa_id")
 
-    # 🔹 Eliminar archivo del servidor si existe
-    if documento.ruta_archivo and os.path.exists(documento.ruta_archivo):
-        os.remove(documento.ruta_archivo)
+    # Validar que la empresa existe
+    empresa = Empresa.query.get(empresa_id)
+    if not empresa:
+        return jsonify({"error": "Empresa no encontrada"}), 404
 
-    db.session.delete(documento)
-    db.session.commit()
+    # Obtener los requisitos de la empresa
+    documentos_requeridos = [req.nombre_requisito for req in empresa.requisitos]
 
-    return jsonify({"message": "✅ Documento eliminado correctamente"}), 200
+    # Obtener los documentos del trabajador
+    documentos_trabajador = Documento.query.filter_by(trabajador_id=trabajador_id).all()
+    documentos_subidos = {doc.tipo for doc in documentos_trabajador}
 
-# 📌 DESCARGAR DOCUMENTO
-@trabajador_bp.route('/documentos/<int:documento_id>/descargar', methods=['GET'])
-@jwt_required()
-def descargar_documento(documento_id):
-    documento = Documento.query.get(documento_id)
-    if not documento:
-        return jsonify({"error": "Documento no encontrado"}), 404
+    # Verificar si faltan documentos
+    documentos_faltantes = [doc for doc in documentos_requeridos if doc not in documentos_subidos]
+    if documentos_faltantes:
+        return jsonify({
+            "error": "No se puede habilitar al trabajador.",
+            "faltantes": documentos_faltantes
+        }), 400
 
-    if not documento.ruta_archivo or not os.path.exists(documento.ruta_archivo):
-        return jsonify({"error": "Archivo no encontrado en el servidor"}), 404
+    # Crear una carpeta temporal para los archivos
+    ruta_temp = f"temp/habilitacion_trabajador_{trabajador_id}"
+    os.makedirs(ruta_temp, exist_ok=True)
 
-    return send_file(documento.ruta_archivo, as_attachment=True)
+    archivos_a_comprimir = []
+    for documento in documentos_trabajador:
+        ruta_archivo = os.path.join(UPLOAD_FOLDER, documento.nombre_archivo).replace("\\", "/")
 
+        if not os.path.exists(ruta_archivo):
+            print(f"⚠️ Archivo no encontrado: {ruta_archivo}, se omitirá.")
+            continue
+
+        destino = os.path.join(ruta_temp, f"{documento.nombre_archivo}-{documento.tipo}")
+        shutil.copy(ruta_archivo, destino)
+        archivos_a_comprimir.append(destino)
+
+    if not archivos_a_comprimir:
+        return jsonify({"error": "No hay archivos para comprimir."}), 400
+
+    # Crear el archivo .rar
+    ruta_rar = f"{ruta_temp}.zip"
+    with zipfile.ZipFile(ruta_rar, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for archivo in archivos_a_comprimir:
+            zipf.write(archivo, os.path.basename(archivo))
+
+    return send_file(ruta_rar, as_attachment=True, download_name=f"trabajador_{trabajador_id}.zip")
