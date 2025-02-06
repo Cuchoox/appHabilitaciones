@@ -65,12 +65,16 @@
                 </div>
 
                 <!-- Lista de Requisitos -->
-                <ul>
-                    <li v-for="(doc, index) in empresaSeleccionada.requisitos" :key="index">
-                        {{ doc.nombre_requisito }} - {{ doc.categoria }}
-                        <button class="eliminar" @click="eliminarRequisito(index)">❌</button>
-                    </li>
-                </ul>
+                <ul v-if="empresaSeleccionada.requisitos && empresaSeleccionada.requisitos.length > 0">
+    <li v-for="(doc, index) in empresaSeleccionada.requisitos" :key="index">
+        📄 {{ doc.nombre_requisito }} - {{ doc.categoria }}
+        <button v-if="editarDocumentos" class="eliminar" @click="eliminarRequisito(index)">❌</button>
+    </li>
+</ul>
+
+<!-- 🔹 Mensaje cuando no hay requisitos -->
+<p v-else>No hay requisitos configurados aún.</p>
+
 
                 <button class="boton guardar-cambios" @click="guardarCambios">💾 Guardar Cambios</button>
                 <button class="cerrar-modal" @click="mostrarModalConfigurar = false">❌ Cerrar</button>
@@ -122,7 +126,7 @@ export default {
           }
       },
       async obtenerRequisitos(empresa) {
-    this.empresaSeleccionada = { ...empresa }; 
+    this.empresaSeleccionada = { ...empresa };
     const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
     if (!token) return;
 
@@ -135,18 +139,19 @@ export default {
         if (!response.ok) throw new Error("Error al obtener requisitos");
 
         const data = await response.json();
-        
-        // Asegurar que `requisitos` no sea `undefined`
-        this.empresaSeleccionada.requisitos = data.length ? data : [];
+        console.log("📥 Requisitos recibidos:", data);  // Debugging
 
-        console.log("📥 Requisitos obtenidos:", this.empresaSeleccionada.requisitos);
+        // 🔹 Asegurar que `requisitos` siempre sea un array válido
+        this.empresaSeleccionada.requisitos = Array.isArray(data) ? data : [];
 
         this.mostrarModalConfigurar = true;
-
     } catch (error) {
         console.error("❌ Error al obtener requisitos:", error);
     }
 },
+
+
+
 
 async agregarRequisito() {
     if (!this.nuevoDocumento.nombre.trim() || !this.nuevoDocumento.categoria) return;
@@ -204,16 +209,11 @@ async agregarRequisito() {
         }
     },
 
-    configurarDocumentos(empresa) {
-    this.empresaSeleccionada = { ...empresa };
-
-    // 🔹 Asegurar que `requisitos` siempre esté definido
-    if (!this.empresaSeleccionada.requisitos) {
-        this.empresaSeleccionada.requisitos = [];
-    }
-
+    async configurarDocumentos(empresa) {
+    await this.obtenerRequisitos(empresa);
     this.mostrarModalConfigurar = true;
 },
+
 
       agregarDocumento() {
     if (!this.nuevoDocumento.nombre.trim() || !this.nuevoDocumento.categoria) return;

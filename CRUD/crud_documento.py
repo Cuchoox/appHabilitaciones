@@ -1,6 +1,9 @@
-from flask import Blueprint, jsonify, request
-from models import db, Documento, Trabajador
+from flask import Blueprint, jsonify, request, send_file
+from models import db, Documento, Trabajador, Empresa
 from flask_jwt_extended import jwt_required
+import os
+import shutil
+import rarfile
 
 # Crear un Blueprint para Documento
 documento_bp = Blueprint('documento_bp', __name__)
@@ -78,3 +81,46 @@ def delete_documento(id):
     db.session.delete(documento)
     db.session.commit()
     return jsonify({'message': 'Documento eliminado correctamente'})
+
+
+@documento_bp.route('/generar-rar/<int:trabajador_id>/<int:empresa_id>', methods=['GET'])
+@jwt_required()
+def generar_rar(trabajador_id, empresa_id):
+    # Obtener datos del trabajador y empresa
+    trabajador = Trabajador.query.get_or_404(trabajador_id)
+    empresa = Empresa.query.get_or_404(empresa_id)
+
+    # Obtener los requisitos de la empresa
+    requisitos_empresa = {req.nombre_requisito for req in empresa.requisitos}
+
+    # Obtener los documentos del trabajador
+    documentos_trabajador = {doc.tipo: doc for doc in trabajador.documentos}
+
+    # Verificar si el trabajador tiene todos los documentos requeridos
+    documentos_faltantes = requisitos_empresa - documentos_trabajador.keys()
+
+    if documentos_faltantes:
+        return jsonify({"error": "Faltan documentos", "documentos_faltantes": list(documentos_faltantes)}), 400
+
+    # Crear carpeta temporal para el .rar
+    temp_folder = f"temp_rar_{trabajador.id}"
+    os.makedirs(temp_folder, exist_ok=True)
+
+    # Copiar y renombrar archivos
+    for tipo_doc, documento in documentos_trabajador.items():
+        origen = os.path.join("uploads", documento.ruta_archivo)  # Ruta de subida
+        destino = os.path.join(temp_folder, f"{documento.nombre_archivo}-{tipo_doc}{os.path.splitext(documento.ruta_archivo)[1]}")
+        shutil.copy(origen, destino)
+
+    # Nombre del archivo .rar
+    rar_filename = f"{trabajador.nombre}.rar"
+    rar_path = os.path.join("uploads", rar_filename)
+
+    # Crear el .rar
+    with rarfile.RarFile(rar_path, "w") as rar:
+        rar.add(temp_folder, arcname=os.path.basename(temp_folder))
+
+    # Limpiar archivos temporales
+    shutil.rmtree(temp_folder)
+
+    return send_file(rar_path, as_attachment=True)

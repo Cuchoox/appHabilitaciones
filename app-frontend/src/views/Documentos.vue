@@ -318,7 +318,56 @@ seleccionarCategoria(categoria) {
               month: "2-digit",
               year: "numeric"
           });
-      }
+      },
+      async habilitarTrabajador() {
+  if (!this.empresaSeleccionada) {
+    Swal.fire("⚠️ Error", "Debes seleccionar una empresa.", "error");
+    return;
+  }
+
+  const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+  if (!token) {
+    Swal.fire("⚠️ Error", "No tienes autorización. Inicia sesión nuevamente.", "error");
+    this.$router.push("/login");
+    return;
+  }
+
+  try {
+    console.log("📦 Enviando petición para generar .rar...");
+    
+    const response = await fetch(`http://localhost:5000/trabajadores/${this.trabajador_id}/generar-rar`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ empresa_id: this.empresaSeleccionada })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Error al generar el .rar.");
+    }
+
+    // Descargar el archivo .rar generado
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Trabajador_${this.trabajador_id}.rar`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+
+    Swal.fire("✅ Éxito", "El archivo .rar se ha generado correctamente.", "success");
+    this.mostrarModalHabilitar = false; // Cerrar modal después de la acción
+  } catch (error) {
+    console.error("❌ Error al generar .rar:", error);
+    Swal.fire("⚠️ Error", error.message, "error");
+  }
+}
+
 
   },
   created() {

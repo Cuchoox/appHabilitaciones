@@ -150,12 +150,15 @@ def obtener_requisitos(empresa_id):
     if not empresa:
         return jsonify({"error": "Empresa no encontrada"}), 404
     
-    requisitos = RequisitoEmpresa.query.filter_by(empresa_id=empresa_id).all()
-    return jsonify([{
-        "id": req.id,
-        "nombre_requisito": req.nombre_requisito,
-        "categoria": req.categoria
-    } for req in requisitos]), 200
+    print(f"🔎 Buscando requisitos para empresa {empresa_id}")
+
+    requisitos = [
+        {"id": req.id, "nombre_requisito": req.nombre_requisito, "categoria": req.categoria} 
+        for req in empresa.requisitos
+    ]
+
+    print(f"📤 Enviando requisitos: {requisitos}")  # ✅ Ver en la consola de Flask
+    return jsonify(requisitos)
 
 @empresa_bp.route('/empresas/<int:empresa_id>/requisitos', methods=['POST'])
 @jwt_required()
@@ -196,16 +199,21 @@ def eliminar_requisito(requisito_id):
 @empresa_bp.route('/empresas/<int:empresa_id>/requisitos', methods=['PUT'])
 @jwt_required()
 def actualizar_requisitos(empresa_id):
-    data = request.json
-    empresa = Empresa.query.get(empresa_id)
+    data = request.get_json()
+    empresa = Empresa.query.get_or_404(empresa_id)
 
-    if not empresa:
-        return jsonify({"error": "Empresa no encontrada"}), 404
+    # 🔹 Limpiar requisitos actuales
+    empresa.requisitos.clear()
 
-    if "requisitos" not in data:
-        return jsonify({"error": "No se enviaron requisitos"}), 400
+    # 🔹 Convertir cada diccionario en una instancia de `RequisitoEmpresa`
+    for req in data["requisitos"]:
+        nuevo_requisito = RequisitoEmpresa(
+            empresa_id=empresa.id,
+            nombre_requisito=req["nombre_requisito"],
+            categoria=req["categoria"]
+        )
+        empresa.requisitos.append(nuevo_requisito)
 
-    empresa.requisitos = data["requisitos"]
     db.session.commit()
 
     return jsonify({"message": "Requisitos actualizados correctamente"}), 200

@@ -22,12 +22,9 @@ class Empresa(db.Model):
     localidad = db.Column(db.String(50))
     creado_en = db.Column(db.DateTime, default=db.func.now())
 
-    # Relación con requisitos de la empresa
-    requisitos_empresa = db.relationship('RequisitoEmpresa', backref='empresa', lazy=True, cascade="all, delete-orphan")
+    # Relación corregida (cambiar `backref` por `back_populates`)
+    requisitos = db.relationship('RequisitoEmpresa', back_populates='empresa', lazy=True, cascade="all, delete-orphan")
 
-    # Relación con historial de asignaciones
-    asignaciones = db.relationship('HistorialAsignacion', backref='empresa', lazy=True)
-    
 class Documento(db.Model):
     __tablename__ = 'documentos'
     id = db.Column(db.Integer, primary_key=True)
@@ -67,8 +64,8 @@ class RequisitoEmpresa(db.Model):
     __tablename__ = 'requisitos_empresa'
     id = db.Column(db.Integer, primary_key=True)
     empresa_id = db.Column(db.Integer, db.ForeignKey('empresas.id'), nullable=False)
-    nombre_requisito = db.Column(db.String(255), nullable=False)  # Ej: "Carnet de identidad"
-    categoria = db.Column(db.String(50), nullable=False)  # Ej: "Personal", "Licencias", "Certificaciones"
+    nombre_requisito = db.Column(db.String(255), nullable=False)  
+    categoria = db.Column(db.String(50), nullable=False)
 
-    def __repr__(self):
-        return f"<Requisito {self.nombre_requisito} - {self.categoria}>"
+    # Asegúrate de que esta relación no usa un backref que se llame "empresa"
+    empresa = db.relationship("Empresa", back_populates="requisitos")
