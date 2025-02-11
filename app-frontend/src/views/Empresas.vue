@@ -20,16 +20,20 @@
                 </thead>
                 <tbody>
                     <tr v-for="empresa in empresasFiltradas" :key="empresa.id">
-                        <td>{{ empresa.nombre }}</td>
-                        <td @click="verTrabajadores(empresa)">{{ empresa.trabajadores_activos }}</td>
-                        <td>
-                            <button class="config-docs" @click="configurarDocumentos(empresa)">📄 Configurar</button>
-                        </td>
-                        <td>
-                            <button class="eliminar" @click="eliminarEmpresa(empresa)">❌ Eliminar</button>
-                        </td>
-                    </tr>
-                </tbody>
+    <td>{{ empresa.nombre }}</td>
+    <td>
+      <button class="boton-trabajadores" @click="verTrabajadoresActivos(empresa)">
+        {{ empresa.trabajadores_activos }}
+      </button>
+    </td>
+    <td>
+      <button class="config-docs" @click="configurarDocumentos(empresa)">📄 Configurar</button>
+    </td>
+    <td>
+      <button class="eliminar" @click="eliminarEmpresa(empresa)">❌ Eliminar</button>
+    </td>
+  </tr>
+</tbody>
             </table>
         </div>
 
@@ -80,6 +84,22 @@
                 <button class="cerrar-modal" @click="mostrarModalConfigurar = false">❌ Cerrar</button>
             </div>
         </div>
+        <!-- Modal Trabajadores Activos -->
+<div v-if="mostrarModalTrabajadores" class="modal-overlay">
+  <div class="modal">
+    <h2>Trabajadores en {{ empresaSeleccionada.nombre }}</h2>
+
+    <ul>
+      <li v-for="trabajador in trabajadoresActivos" :key="trabajador.id">
+        {{ trabajador.nombre }}  - {{ trabajador.rut }}
+        <button class="eliminar" @click="desvincularTrabajador(trabajador)">❌ Desvincular</button>
+      </li>
+    </ul>
+
+    <button class="cerrar-modal" @click="mostrarModalTrabajadores = false">❌ Cerrar</button>
+  </div>
+</div>
+
     </div>
 </template>
   
@@ -93,6 +113,7 @@ export default {
   data() {
       return {
         empresas: [],
+        trabajadoresActivos: [],
         busqueda: "",
         mostrarModalAgregar: false,
         nuevaEmpresa: "",
@@ -100,7 +121,8 @@ export default {
         empresaSeleccionada: {},
         editarDocumentos: false,  // 🔹 Solo controla botones de edición y eliminación
         mostrarFormularioAgregar: false,  // 🔹 Solo controla el formulario
-        nuevoDocumento: { nombre: "", categoria: "" }
+        nuevoDocumento: { nombre: "", categoria: "" },
+        mostrarModalTrabajadores: false
       };
   },
   computed: {
@@ -277,7 +299,59 @@ async agregarRequisito() {
         console.error("❌ Error al guardar requisitos:", error);
         Swal.fire("❌ Error", "No se pudieron guardar los requisitos", "error");
     }
-}
+},
+async verTrabajadoresActivos(empresa) {
+      this.empresaSeleccionada = empresa;
+      const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+      if (!token) return;
+
+      try {
+        const response = await fetch(`http://localhost:5000/empresas/${empresa.id}/trabajadores_asignados`, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${token}` },
+        });
+
+        if (!response.ok) throw new Error("Error al obtener trabajadores");
+
+        this.trabajadoresActivos = await response.json();
+        this.mostrarModalTrabajadores = true;
+      } catch (error) {
+        console.error("❌ Error al obtener trabajadores:", error);
+      }
+    },
+
+    async desvincularTrabajador(trabajador) {
+      const confirmacion = await Swal.fire({
+        title: "¿Estás seguro?",
+        text: `¿Deseas desvincular a ${trabajador.nombre} de ${this.empresaSeleccionada.nombre}?`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Sí, desvincular",
+        cancelButtonText: "Cancelar",
+      });
+
+      if (!confirmacion.isConfirmed) return;
+
+      const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+      if (!token) return;
+
+      try {
+        const response = await fetch(`http://localhost:5000/empresas/${this.empresaSeleccionada.id}/desvincular/${trabajador.id}`, {
+          method: "DELETE",
+          headers: { "Authorization": `Bearer ${token}` },
+        });
+
+        if (!response.ok) throw new Error("Error al desvincular trabajador");
+
+        // Actualizar la lista después de desvincular
+        await this.verTrabajadoresActivos(this.empresaSeleccionada);
+
+        Swal.fire("✅ Desvinculado", `${trabajador.nombre} ha sido desvinculado de ${this.empresaSeleccionada.nombre}`, "success");
+      } catch (error) {
+        console.error("❌ Error al desvincular trabajador:", error);
+        Swal.fire("❌ Error", "Hubo un problema al desvincular al trabajador", "error");
+      }
+    },
 
 
   },
@@ -335,7 +409,7 @@ async agregarRequisito() {
 .tabla-empresas {
     width: 100%;
     border-collapse: collapse;
-    border-radius: 10px;
+    border-radius: 8px;
     overflow: hidden;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
@@ -345,11 +419,25 @@ async agregarRequisito() {
     padding: 12px;
     border-bottom: 1px solid #ddd;
     text-align: center;
+    font-size: 16px;
+}
+
+.tabla-empresas th {
+    background-color: #134b91;
+    color: white;
+}
+.tabla-empresas td {
+    background-color: white;
+    color: black;
+}
+
+.tabla-empresas tbody tr:hover {
+    background-color: #e0e0e0; /* Color de hover */
 }
 
 .agregar { background: #28a745; color: white; }
 .eliminar { 
-  background: #ff6961; 
+  background: #ee0000; 
   color: white; 
   border-radius: 8px; 
   border: none; 
@@ -357,6 +445,7 @@ async agregarRequisito() {
   padding: 5px 10px; 
   margin-right: 10px; /* Agrega distancia entre botones */
   margin-top: 5px;
+  cursor: pointer;
 }
 
 .config-docs { 
@@ -367,6 +456,7 @@ async agregarRequisito() {
   box-shadow: 0px 3px 5px rgba(0, 0, 0, 0.15); 
   padding: 5px 10px; 
   margin-top: 5px;
+  cursor: pointer;
 }
 .editar { background: white; color: black; }
 
@@ -427,4 +517,32 @@ ul li button {
     align-items: center;
     justify-content: center;
 }
+
+.boton-trabajadores {
+    background: #ececed;
+    color: black;
+    border-radius: 8px;
+    border: none;
+    box-shadow: 0px 3px 5px rgba(0, 0, 0, 0.15);
+    padding: 6.5px 50px;
+    margin-top: 5px;
+    cursor: pointer;
+}
+    .boton-trabajadores:hover {
+        background: #d4d5d7;
+    }
+/* Asegurar que todas las filas de la tabla tengan un fondo blanco */
+.tabla-empresas tbody tr {
+    background-color: white !important;
+    color: black !important;
+}
+
+/* Alternar colores de filas para mejor visualización */
+
+
+/* Evitar que el fondo negro aparezca al hacer scroll */
+.empresas-container {
+    background-color: white !important;
+}
+
 </style>

@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from models import db, Empresa, HistorialAsignacion, RequisitoEmpresa
+from models import Trabajador, db, Empresa, HistorialAsignacion, RequisitoEmpresa
 from flask_jwt_extended import jwt_required
 
 # Crear un Blueprint para Empresa
@@ -23,15 +23,18 @@ def obtener_empresas():
 
     resultado = []
     for empresa in empresas:
+        # ✅ Contar cuántos trabajadores están asignados en `HistorialAsignacion`
         trabajadores_activos = HistorialAsignacion.query.filter_by(empresa_id=empresa.id).count()
 
         resultado.append({
             "id": empresa.id,
             "nombre": empresa.nombre,
-            "trabajadores_activos": trabajadores_activos
+            "trabajadores_activos": trabajadores_activos,  # ✅ Se obtiene correctamente
         })
 
     return jsonify(resultado), 200
+
+
 
 # Crear una nueva empresa
 @empresa_bp.route('/empresas', methods=['POST'])
@@ -217,3 +220,25 @@ def actualizar_requisitos(empresa_id):
     db.session.commit()
 
     return jsonify({"message": "Requisitos actualizados correctamente"}), 200
+
+
+@empresa_bp.route('/empresas/<int:empresa_id>/desvincular/<int:trabajador_id>', methods=['DELETE'])
+@jwt_required()
+def desvincular_trabajador(empresa_id, trabajador_id):
+    # Verificar si la empresa y el trabajador existen
+    empresa = Empresa.query.get(empresa_id)
+    trabajador = Trabajador.query.get(trabajador_id)
+
+    if not empresa or not trabajador:
+        return jsonify({"error": "Empresa o trabajador no encontrado"}), 404
+
+    # Buscar la asignación en el historial
+    asignacion = HistorialAsignacion.query.filter_by(empresa_id=empresa_id, trabajador_id=trabajador_id).first()
+    if not asignacion:
+        return jsonify({"error": "El trabajador no está asignado a esta empresa"}), 400
+
+    # Eliminar la asignación
+    db.session.delete(asignacion)
+    db.session.commit()
+
+    return jsonify({"message": f"Trabajador {trabajador.nombre} desvinculado correctamente de {empresa.nombre}"}), 200

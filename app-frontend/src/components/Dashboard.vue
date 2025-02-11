@@ -1,3 +1,4 @@
+
 <template>
     <div class="dashboard">
         <div class="sidebar-container">
@@ -60,7 +61,7 @@
                 </div>
                 <ul v-if="trabajador.expandido" class="documentos-lista">
                     <li v-for="doc in trabajador.documentos" :key="doc.id">
-                        📄 {{ doc.nombre }} ({{ doc.fecha_vencimiento }})
+                        📄 {{ doc.tipo_documento }} - {{ new Date(doc.fecha_vencimiento).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) }}
                     </li>
                 </ul>
             </li>
@@ -143,6 +144,7 @@
             console.error("❌ Error al obtener documentos:", err);
         }
     },
+    
     refrescarDocumentos() {
         this.obtenerDocumentos();
     },
@@ -293,7 +295,7 @@ html, body {
 }
 
 .danger {
-    background-color: #ff1616;
+    background-color: #ee0000;
     color: white;
 }
 
@@ -342,9 +344,98 @@ html, body {
 .modal {
     background: white;
     padding: 20px;
-    border-radius: 8px;
-    width: 400px;
-    box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.3);
-    text-align: center;
+    border-radius: 10px;
+    width: 600px; /* Agrandado el modal */
+    max-width: 90%;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    text-align: left;
+    position: relative;
 }
+
+.modal h2 {
+    margin-top: 0;
+    font-size: 1.5rem;
+    color: #113c70;
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 10px;
+}
+
+.modal .alerta {
+    background-color: #ffcc00;
+    color: black;
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 15px;
+    font-weight: bold;
+}
+
+.modal .boton-ver-mas,
+.modal .refresh-btn,
+.modal .cerrar-modal {
+    display: inline-block;
+    margin-top: 15px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background 0.3s ease-in-out;
+}
+
+.modal .boton-ver-mas {
+    background-color: #134b91;
+    color: white;
+}
+
+.modal .refresh-btn {
+    background-color: #ffcc00;
+    color: black;
+}
+
+.modal .cerrar-modal {
+    background-color: #ff4d4d;
+    color: white;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+}
+
+.modal .boton-ver-mas:hover,
+.modal .refresh-btn:hover,
+.modal .cerrar-modal:hover {
+    opacity: 0.8;
+}
+
+.modal ul {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+}
+
+.modal ul li {
+    padding: 10px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.modal ul li:last-child {
+    border-bottom: none;
+}
+
+.modal .trabajador {
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 1.1rem; /* Agrandado el tamaño de la letra */
+    color: #113c70; /* Cambiado el color de la letra */
+}
+
+.modal .documentos-lista {
+    margin-top: 10px;
+    padding-left: 20px;
+}
+
+.modal .documentos-lista li {
+    color: black; /* Color del nombre del documento */
+}
+
+
 </style>

@@ -149,82 +149,117 @@ def obtener_documentos_trabajador():
 @jwt_required()
 def subir_documento(trabajador_id):
     if "archivo" not in request.files:
-        return jsonify({"error": "No se ha enviado un archivo"}), 400
+        return jsonify({"error": "No se ha enviado un archivo"}), 422
 
     archivo = request.files["archivo"]
     if archivo.filename == "":
-        return jsonify({"error": "No se ha seleccionado ningún archivo"}), 400
+        return jsonify({"error": "No se ha seleccionado ningún archivo"}), 422
 
     data = request.form
+    print("📥 Datos recibidos:", data)  # 🔹 Depuración
+
     categoria = data.get("categoria")
     fecha_vencimiento = data.get("fecha_vencimiento")
     tipo_documento = data.get("tipo")
 
-    # Obtener el nombre del trabajador
+    if not categoria or not fecha_vencimiento or not tipo_documento:
+        return jsonify({"error": "Todos los campos son obligatorios (categoría, fecha de vencimiento, tipo)."}), 422
+
+    # 🔹 Verificar si el trabajador existe
     trabajador = Trabajador.query.get(trabajador_id)
     if not trabajador:
-        return jsonify({"error": "Trabajador no encontrado"}), 404
+        return jsonify({"error": "El trabajador no existe"}), 404
 
-    # Generar el nombre del archivo: "Tipo - Nombre Apellido.extensión"
-    extension = archivo.filename.rsplit(".", 1)[-1]
-    nuevo_nombre = f"{tipo_documento} - {trabajador.nombre} {trabajador.apellido}.{extension}"
-    
-    # Generar ruta del archivo
-    ruta_archivo = os.path.join(UPLOAD_FOLDER, secure_filename(nuevo_nombre))
-    
-    # 🔹 Agregar print para depuración
-    print(f"📂 Guardando archivo en: {ruta_archivo}")
+    # 🔹 Renombrar el archivo como "Tipo - Nombre Apellido"
+    nombre_trabajador = f"{trabajador.nombre} {trabajador.apellido}"
+    extension = archivo.filename.split('.')[-1]
+    nuevo_nombre_archivo = f"{tipo_documento} - {nombre_trabajador}.{extension}"
 
-    # Guardar el archivo en el servidor
+    # 🔹 Guardar el archivo en el servidor
+    ruta_archivo = os.path.join(UPLOAD_FOLDER, nuevo_nombre_archivo)
     archivo.save(ruta_archivo)
+    print(f"📂 Archivo guardado en: {ruta_archivo}")  # Depuración
 
-    # Crear el objeto Documento y asignar ruta_archivo
+    # 🔹 Crear y guardar el documento en la base de datos
     nuevo_documento = Documento(
         trabajador_id=trabajador_id,
-        nombre_archivo=nuevo_nombre,
+        nombre_archivo=nuevo_nombre_archivo,
         categoria=categoria,
+        ruta_archivo=ruta_archivo,
         fecha_vencimiento=fecha_vencimiento,
-        tipo=tipo_documento,
-        ruta_archivo=ruta_archivo  # ✅ Asegurarse de que no sea None
+        tipo=tipo_documento
     )
 
-    # Agregar a la BD y confirmar
     db.session.add(nuevo_documento)
-    db.session.commit()
+    db.session.commit()  # 🔹 Aquí se guarda en la base de datos
 
-    return jsonify({"mensaje": "Documento subido exitosamente", "documento": nuevo_nombre}), 201
+    return jsonify({"mensaje": "Documento subido correctamente"}), 201
+
+
 
 @trabajador_bp.route("/trabajadores/<int:trabajador_id>/generar-rar", methods=["POST"])
 @jwt_required()
 def generar_rar(trabajador_id):
     data = request.get_json()
-    empresa_id = data.get("empresa_id")
+    empresa_nombre = data.get("empresa_id")
 
-    # Validar que la empresa existe
-    empresa = Empresa.query.get(empresa_id)
+    print(f"📥 Empresa nombre recibido: {empresa_nombre}")  # 📌 Verificar si llega correctamente
+
+    if not empresa_nombre:
+        return jsonify({"error": "Falta el campo 'empresa_id'"}), 400
+
+    empresa = Empresa.query.filter_by(nombre=empresa_nombre).first()
     if not empresa:
+        print("❌ Empresa no encontrada")
         return jsonify({"error": "Empresa no encontrada"}), 404
 
     # Obtener los requisitos de la empresa
-    documentos_requeridos = [req.nombre_requisito for req in empresa.requisitos]
+    documentos_requeridos = [req.nombre_requisito for req in empresa.requisitos] if empresa.requisitos else []
+    print(f"📋 Documentos requeridos por {empresa.nombre}: {documentos_requeridos}")
 
     # Obtener los documentos del trabajador
     documentos_trabajador = Documento.query.filter_by(trabajador_id=trabajador_id).all()
-    documentos_subidos = {doc.tipo for doc in documentos_trabajador}
+    documentos_subidos = {doc.tipo for doc in documentos_trabajador} if documentos_trabajador else set()
+    print(f"📂 Documentos subidos por el trabajador: {documentos_subidos}")
 
     # Verificar si faltan documentos
     documentos_faltantes = [doc for doc in documentos_requeridos if doc not in documentos_subidos]
+    print(f"⚠️ Documentos faltantes: {documentos_faltantes}")
+
     if documentos_faltantes:
         return jsonify({
-            "error": "No se puede habilitar al trabajador.",
+            "error": "No se puede habilitar al trabajador por falta de documentos.",
             "faltantes": documentos_faltantes
         }), 400
+
+    # Verificar que haya documentos antes de continuar
+    if not documentos_trabajador:
+        print("❌ No hay documentos asociados al trabajador")
+        return jsonify({"error": "No hay documentos asociados al trabajador"}), 400
+
+    # Verificar si el trabajador ya está asignado a esta empresa
+    asignacion_existente = HistorialAsignacion.query.filter_by(trabajador_id=trabajador_id, empresa_id=empresa.id).first()
+    
+    if asignacion_existente:
+        print("ℹ️ El trabajador ya está asignado a esta empresa. Solo se generará el archivo ZIP sin modificar la base de datos.")
+        trabajador = Trabajador.query.get(trabajador_id)
+        ruta_zip = f"temp/Documentos_{trabajador.nombre}_{trabajador.apellido}.zip"
+        
+        if os.path.exists(ruta_zip):
+            return send_file(ruta_zip, as_attachment=True, download_name=f"Documentos_{trabajador.nombre}_{trabajador.apellido}.zip")
+        else:
+            print("❌ Archivo ZIP no encontrado, se volverá a generar.")
 
     # Crear una carpeta temporal para los archivos
     ruta_temp = f"temp/habilitacion_trabajador_{trabajador_id}"
     os.makedirs(ruta_temp, exist_ok=True)
+    print(f"📁 Carpeta temporal creada: {ruta_temp}")
 
     archivos_a_comprimir = []
+    trabajador = Trabajador.query.get(trabajador_id)
+    if not trabajador:
+        return jsonify({"error": "Trabajador no encontrado"}), 404
+
     for documento in documentos_trabajador:
         ruta_archivo = os.path.join(UPLOAD_FOLDER, documento.nombre_archivo).replace("\\", "/")
 
@@ -232,17 +267,37 @@ def generar_rar(trabajador_id):
             print(f"⚠️ Archivo no encontrado: {ruta_archivo}, se omitirá.")
             continue
 
-        destino = os.path.join(ruta_temp, f"{documento.nombre_archivo}-{documento.tipo}")
+        # Obtener la extensión original del archivo
+        nombre_original, extension = os.path.splitext(documento.nombre_archivo)
+
+        # Crear el nuevo nombre con la extensión original
+        nuevo_nombre = f"{documento.tipo} - {trabajador.nombre} {trabajador.apellido}{extension}"
+
+        # Copiar el archivo con el nuevo nombre, pero manteniendo la extensión
+        destino = os.path.join(ruta_temp, nuevo_nombre)
         shutil.copy(ruta_archivo, destino)
         archivos_a_comprimir.append(destino)
 
+        print(f"📄 Archivo copiado: {destino}")
+
     if not archivos_a_comprimir:
+        print("❌ No hay archivos para comprimir.")
         return jsonify({"error": "No hay archivos para comprimir."}), 400
 
-    # Crear el archivo .rar
-    ruta_rar = f"{ruta_temp}.zip"
-    with zipfile.ZipFile(ruta_rar, "w", zipfile.ZIP_DEFLATED) as zipf:
+    # Crear el nombre correcto del archivo .zip
+    ruta_zip = f"temp/Documentos_{trabajador.nombre}_{trabajador.apellido}.zip"
+
+    # Crear el archivo zip
+    with zipfile.ZipFile(ruta_zip, 'w') as zipf:
         for archivo in archivos_a_comprimir:
             zipf.write(archivo, os.path.basename(archivo))
 
-    return send_file(ruta_rar, as_attachment=True, download_name=f"trabajador_{trabajador_id}.zip")
+    # Si el trabajador no estaba asignado, se asigna
+    if not asignacion_existente:
+        nueva_asignacion = HistorialAsignacion(trabajador_id=trabajador_id, empresa_id=empresa.id)
+        db.session.add(nueva_asignacion)
+        db.session.commit()
+        print("✅ Trabajador asignado correctamente a la empresa.")
+
+    trabajador_nombre = f"{trabajador.nombre}_{trabajador.apellido}"
+    return send_file(ruta_zip, as_attachment=True, download_name=f"Documentos_{trabajador_nombre}.zip")

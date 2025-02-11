@@ -4,7 +4,7 @@
     <div class="content">
       <div class="header">
         <button class="boton volver" @click="$router.push('/trabajadores')">⬅ Volver</button>
-        <h1 class="titulo">📂 Documentos de {{ trabajador ? trabajador.nombre : 'Cargando...' }}</h1>
+        <h1 class="titulo">📂 Documentos de {{ trabajador ? trabajador.nombre.split(' ')[0] + ' ' + trabajador.apellido.split(' ')[0] : 'Cargando...' }}</h1>
       </div>
       
       <!-- Categorías de documentos -->
@@ -64,15 +64,19 @@
     <input type="date" v-model="fechaVencimiento" class="input-fecha" required />
 
     <!-- 🔹 Agregar dropdown con los tipos disponibles -->
-    <select v-model="tipoDocumentoSeleccionado" class="select-categoria" required>
-      <option disabled value="">Seleccione el tipo de documento</option>
-      <option v-for="tipo in tiposDocumentos" :key="tipo">{{ tipo }}</option>
-    </select>
+
+
+    <select v-model="tipoDocumentoSeleccionado" class="select-tipo">
+    <option disabled value="">Seleccione un tipo</option>
+    <option v-for="tipo in tiposDocumentos" :key="tipo">{{ tipo }}</option>
+</select>
+
 
     <select v-model="categoriaSeleccionada" class="select-categoria" required>
       <option disabled value="">Seleccione una categoría</option>
       <option v-for="categoria in categorias" :key="categoria">{{ categoria }}</option>
     </select>
+    
     
     <button class="boton subir" @click="subirDocumento">📤 Subir Documento</button>
     <button class="boton cerrar-modal" @click="mostrarModalSubir = false">❌ Cerrar</button>
@@ -167,38 +171,56 @@ export default {
     },
 
     async subirDocumento() {
-    if (!this.archivoSeleccionado || !this.fechaVencimiento || !this.tipoDocumentoSeleccionado) {
-      Swal.fire("⚠️ Error", "Todos los campos son obligatorios.", "error");
-      return;
+    if (!this.archivoSeleccionado || !this.fechaVencimiento || !this.categoriaSeleccionada || !this.tipoDocumentoSeleccionado) {
+        Swal.fire("⚠️ Error", "Todos los campos son obligatorios.", "error");
+        return;
     }
 
+    console.log("📤 Subiendo documento con datos:", {
+        archivo: this.archivoSeleccionado.name,
+        categoria: this.categoriaSeleccionada,
+        fecha_vencimiento: this.fechaVencimiento,
+        tipo: this.tipoDocumentoSeleccionado,
+    });
+
     const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
-    if (!token) return;
+    if (!token) {
+        Swal.fire("⚠️ Error", "No tienes autorización. Inicia sesión nuevamente.", "error");
+        this.$router.push("/login");
+        return;
+    }
 
     const formData = new FormData();
     formData.append("archivo", this.archivoSeleccionado);
     formData.append("nombre_archivo", this.archivoSeleccionado.name);
     formData.append("categoria", this.categoriaSeleccionada);
     formData.append("fecha_vencimiento", this.fechaVencimiento);
-    formData.append("tipo", this.tipoDocumentoSeleccionado); // 🔹 Nuevo campo
+    formData.append("tipo", this.tipoDocumentoSeleccionado);  // 👈 Verificar que no sea undefined
 
     try {
-      const response = await fetch(`http://localhost:5000/trabajadores/${this.trabajador_id}/documentos`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${token}"` },
-        body: formData
-      });
+        const response = await fetch(`http://localhost:5000/trabajadores/${this.trabajador_id}/documentos`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}` // No incluir "Content-Type" porque es FormData
+            },
+            body: formData
+        });
 
-      if (!response.ok) throw new Error("Error al subir documento");
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || "Error al subir el documento.");
+        }
 
-      Swal.fire("✅ Éxito", "Documento subido correctamente.", "success");
-      this.obtenerDocumentos();
-      this.mostrarModalSubir = false;
+        Swal.fire("✅ Éxito", "Documento subido correctamente.", "success");
+        this.obtenerDocumentos();  // 🔄 Actualizar la lista de documentos
+        this.mostrarModalSubir = false; 
     } catch (error) {
-      console.error("❌ Error al subir documento:", error);
-      Swal.fire("❌ Error", "Hubo un problema al subir el documento.", "error");
+        console.error("❌ Error al subir documento:", error);
+        Swal.fire("⚠️ Error", error.message, "error");
     }
-  },
+},
+
+
 
 
 seleccionarArchivo(event) {
@@ -325,7 +347,7 @@ seleccionarCategoria(categoria) {
               year: "numeric"
           });
       },
-      async habilitarTrabajador() {
+  async habilitarTrabajador() {
   if (!this.empresaSeleccionada) {
     Swal.fire("⚠️ Error", "Debes seleccionar una empresa.", "error");
     return;
@@ -341,12 +363,13 @@ seleccionarCategoria(categoria) {
         "Authorization": `Bearer ${token}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ empresa_id: this.empresaSeleccionada })
+      body: JSON.stringify({ empresa_id: this.empresaSeleccionada }) // 🚨 Asegurar que se envía el ID de la empresa
     });
 
     if (response.status === 400) {
       const errorData = await response.json();
-      Swal.fire("⚠️ Error", `Faltan documentos: ${errorData.faltantes.join(", ")}`, "error");
+      const faltantes = errorData.faltantes && Array.isArray(errorData.faltantes) && errorData.faltantes.length > 0 ? errorData.faltantes.join(", ") : "desconocidos";
+      Swal.fire("⚠️ Error", `Faltan documentos: ${faltantes}`, "error");
       return;
     }
 
@@ -545,6 +568,14 @@ async obtenerTiposDocumentos() {
 
 .boton.cerrar-modal {
   background: #dc3545; /* Color rojo para botón "Cerrar" */
+  padding: 15px 60px;
+  margin-left: 15px;
+}
+
+.boton.subir
+{
+  padding: 15px 25px;
+  margin-top: 20px;
 }
 
 .boton:hover {
@@ -575,6 +606,7 @@ async obtenerTiposDocumentos() {
 
 .input-archivo,
 .input-fecha,
+.select-tipo,
 .select-categoria,
 .select-empresa {
   width: 100%;

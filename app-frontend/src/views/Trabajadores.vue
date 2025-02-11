@@ -36,6 +36,7 @@
               <thead>
                   <tr>
                       <th>Nombre</th>
+                      <th>Apellidos</th>
                       <th>RUT</th>
                       <th>Cargo</th>
                       <th>Acciones</th>
@@ -44,6 +45,7 @@
               <tbody>
                   <tr v-for="trabajador in filteredTrabajadores" :key="trabajador.id">
                       <td style="color: black;">{{ trabajador.nombre }}</td>
+                      <td style="color: black;">{{trabajador.apellido}}</td>
                       <td style="color: black;">{{ trabajador.rut }}</td>
                       <td style="color: black;">{{ trabajador.cargo }}</td>
                       <td>
@@ -237,6 +239,7 @@ async guardarEdicionTrabajador(trabajadorEditado) {
       },
       body: JSON.stringify({
         nombre: trabajadorEditado.nombre,
+        apellido: trabajadorEditado.apellido,
         rut: trabajadorEditado.rut,
         cargo: trabajadorEditado.cargo,
         tipo: trabajadorEditado.tipo,
@@ -456,7 +459,7 @@ button {
 
 
 .editar { background-color: #ffc107; color: black; }
-.eliminar { background-color: #dc3545; color: white; }
+.eliminar { background-color: #ee0000; color: white; }
 
 /* 🔹 Botón Flotante */
 .boton-flotante {

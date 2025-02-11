@@ -12,9 +12,9 @@
                 <input type="password" v-model="password" placeholder="Contraseña" />
                 <div class="options">
                     <label>
-                        <input type="checkbox" v-model="rememberMe" /> Recuérdame
+                        <input type="checkbox" v-model="rememberMe" style="margin-bottom: 0px;" /> Recuérdame
                     </label>
-                    <a href="#">Recuperar contraseña</a>
+                    <router-link to="/recuperar">Recuperar contraseña</router-link>
                 </div>
                 <button @click="handleLogin">Iniciar Sesión</button>
                 <p v-if="error" class="error">{{ error }}</p>

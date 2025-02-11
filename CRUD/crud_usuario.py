@@ -10,11 +10,12 @@ def register():
     username = data.get('username')
     password = data.get('password')
     rol = data.get('rol', 'colaborador')  # Rol por defecto: colaborador
+    email = data.get('email')
 
     if Usuario.query.filter_by(username=username).first():
         return jsonify({'message': 'El usuario ya existe'}), 400
 
-    nuevo_usuario = Usuario(username=username, rol=rol)
+    nuevo_usuario = Usuario(username=username, rol=rol, email=email)
     nuevo_usuario.set_password(password)
     db.session.add(nuevo_usuario)
     db.session.commit()
