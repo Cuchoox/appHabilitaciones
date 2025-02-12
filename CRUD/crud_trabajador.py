@@ -301,3 +301,25 @@ def generar_rar(trabajador_id):
 
     trabajador_nombre = f"{trabajador.nombre}_{trabajador.apellido}"
     return send_file(ruta_zip, as_attachment=True, download_name=f"Documentos_{trabajador_nombre}.zip")
+
+
+@trabajador_bp.route("/trabajadores/<int:trabajador_id>/documentos-faltantes", methods=["GET"])
+@jwt_required()
+def obtener_documentos_faltantes(trabajador_id):
+    empresa_id = request.args.get("empresa_id")
+
+    # Buscar la empresa
+    empresa = Empresa.query.get(empresa_id)
+    if not empresa:
+        return jsonify({"error": "Empresa no encontrada"}), 404
+
+    # Obtener los documentos requeridos para esa empresa
+    documentos_requeridos = {req.nombre_requisito for req in empresa.requisitos}
+
+    # Obtener los documentos que el trabajador ya subió
+    documentos_trabajador = {doc.tipo for doc in Documento.query.filter_by(trabajador_id=trabajador_id).all()}
+
+    # Identificar los documentos que faltan
+    documentos_faltantes = list(documentos_requeridos - documentos_trabajador)
+
+    return jsonify({"faltantes": documentos_faltantes}), 200

@@ -9,21 +9,20 @@
       
       <!-- Categorías de documentos -->
       <div class="categorias">
-  <button
-    v-for="categoria in categorias"
-    :key="categoria"
-    @click="seleccionarCategoria(categoria)"
-    :class="{ activo: categoriaSeleccionada === categoria }"
-    class="boton-categoria"
-  >
-    {{ categoria }}
-  </button>
-</div>
+        <button
+          v-for="categoria in categorias"
+          :key="categoria"
+          @click="seleccionarCategoria(categoria)"
+          :class="{ activo: categoriaSeleccionada === categoria }"
+          class="boton-categoria"
+        >
+          {{ categoria }}
+        </button>
+      </div>
 
+      <input type="text" v-model="busqueda" @input="filtrarDocumentos" placeholder="Buscar documento..." class="barra-busqueda" />
 
-<input type="text" v-model="busqueda" @input="filtrarDocumentos" placeholder="Buscar documento..." class="barra-busqueda" />
-
-<!-- Listado de documentos -->
+      <!-- Listado de documentos -->
       <div class="tabla-container">
         <table class="tabla-documentos">
           <thead>
@@ -39,67 +38,74 @@
               <td>{{ documento.nombre_archivo }}</td>
               <td>{{ documento.categoria }}</td>
               <td>{{ formatearFecha(documento.fecha_vencimiento) }}</td>
-
               <td>
-                  <button class="boton-descargar" @click="descargarDocumento(documento)">⬇ Descargar</button>
-                  <button class="boton-eliminar" @click="eliminarDocumento(documento.id)">🗑 Eliminar</button>
+                <button class="boton-descargar" @click="descargarDocumento(documento)">⬇ Descargar</button>
+                <button class="boton-eliminar" @click="eliminarDocumento(documento.id)">🗑 Eliminar</button>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
       
-      <!-- Botones para abrir modales -->
-      <div class="acciones">
-        <button class="boton abrir-modal" @click="mostrarModalSubir = true">📤 Subir Documento</button>
+       <!-- Botón para habilitar trabajador -->
+       <div class="acciones">
         <button class="boton abrir-modal" @click="mostrarModalHabilitar = true">✅ Habilitar Trabajador</button>
       </div>
 
-    <!-- Modal Subir Documento -->
-<!-- Modal Subir Documento -->
-<div v-if="mostrarModalSubir" class="modal-overlay">
+     <!-- MODAL HABILITAR TRABAJADOR -->
+<div v-if="mostrarModalHabilitar" class="modal-overlay">
   <div class="modal">
-    <h2>Subir Documento</h2>
-    <input type="file" @change="seleccionarArchivo" class="input-archivo" accept=".jpg, .png, .pdf"/>
-    <input type="date" v-model="fechaVencimiento" class="input-fecha" required />
+    <h2 class="titulo-modal">Habilitar Trabajador</h2>
 
-    <!-- 🔹 Agregar dropdown con los tipos disponibles -->
-
-
-    <select v-model="tipoDocumentoSeleccionado" class="select-tipo">
-    <option disabled value="">Seleccione un tipo</option>
-    <option v-for="tipo in tiposDocumentos" :key="tipo">{{ tipo }}</option>
+    <!-- SELECCIONAR EMPRESA -->
+    <div class="seleccion-empresa">
+      <h3>Empresa:</h3>
+      <select v-model="empresaSeleccionada" class="select-empresa" @change="continuarHabilitacion">
+        <option disabled value="">Seleccione una empresa</option>
+  <option v-for="empresa in empresas" :key="empresa.id" :value="empresa.id">{{ empresa.nombre }}</option>
 </select>
 
+    </div>
 
-    <select v-model="categoriaSeleccionada" class="select-categoria" required>
-      <option disabled value="">Seleccione una categoría</option>
-      <option v-for="categoria in categorias" :key="categoria">{{ categoria }}</option>
-    </select>
-    
-    
-    <button class="boton subir" @click="subirDocumento">📤 Subir Documento</button>
-    <button class="boton cerrar-modal" @click="mostrarModalSubir = false">❌ Cerrar</button>
+    <!-- LISTADO DE DOCUMENTOS FALTANTES -->
+    <div v-if="empresaSeleccionada" class="documentos-container">
+      <h3>Documentos requeridos para {{ obtenerNombreEmpresa(empresaSeleccionada) }}:</h3>
+      <ul v-if="documentosFaltantes && documentosFaltantes.length">
+        <li v-for="documento in documentosFaltantes" :key="documento">
+    <span :class="{'completo': archivosSubidos[documento]}">
+      {{ archivosSubidos[documento] ? '✅' : '❌' }} {{ documento }}
+    </span>
+
+    <!-- Input de fecha -->
+    <input type="date" v-model="fechaVencimiento[documento]" class="input-fecha" required />
+
+    <!-- Botón para seleccionar archivo -->
+    <input type="file" @change="seleccionarArchivo($event, documento)" />
+
+    <button 
+      v-if="archivosSubidos[documento]" 
+      class="boton eliminar" 
+      @click="eliminarArchivo(documento)">
+      ❌
+    </button>
+  </li>
+</ul>
+<p v-else>No hay documentos requeridos para esta empresa.</p>
+
+    </div>
+
+    <!-- BOTONES -->
+    <div class="botones-modal">
+      <button class="boton guardar" @click="guardarDocumentos">💾 Guardar Documentos</button>
+      <button class="boton rojo" @click="cerrarModalHabilitar">❌ Cerrar</button>
+    </div>
   </div>
 </div>
 
-
-      
-      <!-- Modal Habilitar Trabajador -->
-      <div v-if="mostrarModalHabilitar" class="modal-overlay">
-        <div class="modal">
-          <h2>Habilitar Trabajador</h2>
-          <select v-model="empresaSeleccionada" class="select-empresa">
-            <option disabled value="">Seleccione una empresa</option>
-            <option v-for="empresa in empresas" :key="empresa.id">{{ empresa.nombre }}</option>
-          </select>
-          <button class="boton habilitar" @click="habilitarTrabajador">📦 Generar .rar</button>
-          <button class="boton cerrar-modal" @click="mostrarModalHabilitar = false">❌ Cerrar</button>
-        </div>
-      </div>
     </div>
   </div>
 </template>
+
 
 <script>
 import Sidebar from "@/components/Sidebar.vue";
@@ -110,19 +116,22 @@ export default {
   data() {
     return {
       documentos: [],
-      busqueda: "",
       trabajador: null,
-      categorias: ["Personal", "Licencias", "Certificaciones"],
+      busqueda: "",
+      categorias: ["Administrativos", "Salud y Seguridad", "Capacitación y Certificaciones"],
       categoriaSeleccionada: "",
       fechaVencimiento: "",
       archivoSeleccionado: null,
       empresas: [],
-      empresaSeleccionada: "",
+      empresaTemporal: "", // 🔹 Nueva variable temporal
+      empresaSeleccionada: "", // Esta solo cambia cuando el usuario presiona "Continuar"
       mostrarModalSubir: false,
       mostrarModalHabilitar: false,
-      busquedaDocumento: "",
-      tiposDocumentos: [],  // 🔹 Lista de tipos de documentos obtenidos del backend
-    tipoDocumentoSeleccionado: "",  // 🔹 Tipo seleccionado por el usuario
+      documentosFaltantes: [],
+      tiposDocumentos: [],
+      tipoDocumentoSeleccionado: "",
+      archivosSubidos: {}, // Almacena los archivos seleccionados para documentos faltantes
+      documentosNombres: {}, // Para mostrar nombres personalizados de documentos
     };
   },
   computed: {
@@ -157,6 +166,7 @@ export default {
       if (!response.ok) return;
       this.trabajador = await response.json();
     },
+
     async obtenerDocumentos() {
       const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
       if (!token) return;
@@ -169,64 +179,141 @@ export default {
       if (!response.ok) return;
       this.documentos = await response.json();
     },
+    obtenerNombreEmpresa(empresaId) {
+    const empresa = this.empresas.find(emp => emp.id === empresaId);
+    return empresa ? empresa.nombre : "Empresa desconocida";
+  },
+    abrirModalSubir() {
+      this.mostrarModalSubir = true;
+    },
+    async continuarHabilitacion() {
+  if (!this.empresaSeleccionada) {
+    Swal.fire("⚠️ Error", "Debes seleccionar una empresa para continuar.", "error");
+    return;
+  }
 
-    async subirDocumento() {
-    if (!this.archivoSeleccionado || !this.fechaVencimiento || !this.categoriaSeleccionada || !this.tipoDocumentoSeleccionado) {
-        Swal.fire("⚠️ Error", "Todos los campos son obligatorios.", "error");
+  console.log("✅ Empresa seleccionada:", this.empresaSeleccionada);
+
+  await this.obtenerDocumentosFaltantes();
+},
+async obtenerDocumentosFaltantes() {
+    console.log("📡 Intentando obtener documentos faltantes...");
+    
+    let token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+
+    if (!token) {
+        console.error("❌ No hay token de autenticación. Redirigiendo al login...");
+        Swal.fire("⚠️ Sesión expirada", "Debes iniciar sesión nuevamente.", "error");
+        this.$router.push("/");  // 🔄 Redirigir al login
         return;
     }
 
-    console.log("📤 Subiendo documento con datos:", {
-        archivo: this.archivoSeleccionado.name,
-        categoria: this.categoriaSeleccionada,
-        fecha_vencimiento: this.fechaVencimiento,
-        tipo: this.tipoDocumentoSeleccionado,
-    });
+    if (!this.empresaSeleccionada) {
+        console.error("❌ No hay empresa seleccionada");
+        return;
+    }
 
+    console.log(`📡 Enviando petición para obtener documentos faltantes de empresa: ${this.empresaSeleccionada}`);
+
+    try {
+        const response = await fetch(
+            `http://localhost:5000/trabajadores/${this.trabajador_id}/documentos-faltantes?empresa_id=${this.empresaSeleccionada}`,
+            { headers: { "Authorization": `Bearer ${token}` } }
+        );
+
+        if (!response.ok) throw new Error("Error al obtener documentos faltantes");
+
+        const data = await response.json();
+        console.log("📥 Respuesta del backend:", data);
+
+        this.documentosFaltantes = data.faltantes || [];
+    } catch (error) {
+        console.error("❌ Error al obtener documentos faltantes:", error);
+    }
+},
+async guardarDocumentos() {
     const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+
+    console.log("🔐 Token obtenido:", token);  // ✅ Imprime el token para verificar
+
     if (!token) {
         Swal.fire("⚠️ Error", "No tienes autorización. Inicia sesión nuevamente.", "error");
         this.$router.push("/login");
         return;
     }
 
+    console.log("📂 Archivos seleccionados para subir:", this.archivosSubidos);
+
+    if (Object.keys(this.archivosSubidos).length === 0) {
+        Swal.fire("⚠️ Advertencia", "No has subido ningún documento.", "warning");
+        return;
+    }
+
+    console.log("📤 Enviando archivos al backend...");
+
     const formData = new FormData();
-    formData.append("archivo", this.archivoSeleccionado);
-    formData.append("nombre_archivo", this.archivoSeleccionado.name);
-    formData.append("categoria", this.categoriaSeleccionada);
-    formData.append("fecha_vencimiento", this.fechaVencimiento);
-    formData.append("tipo", this.tipoDocumentoSeleccionado);  // 👈 Verificar que no sea undefined
+    Object.keys(this.archivosSubidos).forEach(documento => {
+        console.log(`📎 Agregando al FormData: ${documento}`, this.archivosSubidos[documento]);
+        formData.append("archivo", this.archivosSubidos[documento]);
+        formData.append("tipo", documento);
+    });
 
     try {
         const response = await fetch(`http://localhost:5000/trabajadores/${this.trabajador_id}/documentos`, {
             method: "POST",
-            headers: {
-                "Authorization": `Bearer ${token}` // No incluir "Content-Type" porque es FormData
+            headers: { 
+                "Authorization": `Bearer ${token}` // ✅ Verificar que este header se envía
             },
             body: formData
         });
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || "Error al subir el documento.");
+        if (response.status === 401) {
+            console.error("❌ Token inválido o sesión expirada.");
+            Swal.fire("⚠️ Sesión Expirada", "Tu sesión ha expirado. Inicia sesión nuevamente.", "error");
+            this.$router.push("/login");
+            return;
         }
 
-        Swal.fire("✅ Éxito", "Documento subido correctamente.", "success");
-        this.obtenerDocumentos();  // 🔄 Actualizar la lista de documentos
-        this.mostrarModalSubir = false; 
+        if (!response.ok) throw new Error("Error al subir documentos");
+
+        Swal.fire("✅ Éxito", "Documentos subidos correctamente.", "success");
+
+        // 🔄 **Actualizar la lista de documentos después de subirlos**
+        await this.obtenerDocumentos();
+        await this.obtenerDocumentosFaltantes();
+        this.archivosSubidos = {};
+
     } catch (error) {
-        console.error("❌ Error al subir documento:", error);
-        Swal.fire("⚠️ Error", error.message, "error");
+        console.error("❌ Error al subir documentos:", error);
+        Swal.fire("❌ Error", "No se pudieron subir los documentos.", "error");
     }
 },
 
 
 
+cargarDocumentosEmpresa() {
+  if (!this.empresaSeleccionada) {
+    this.documentosFaltantes = [];
+    return;
+  }
+  console.log("🏢 Empresa seleccionada:", this.empresaSeleccionada); // Verificar ID empresa
+  this.obtenerDocumentosFaltantes();
+},
 
-seleccionarArchivo(event) {
-    this.archivoSeleccionado = event.target.files[0];
-    console.log("📂 Archivo seleccionado:", this.archivoSeleccionado);
-  },
+seleccionarArchivo(event, documento) {
+    const archivo = event.target.files[0];
+    
+    if (!archivo) return;
+
+    console.log("📂 Archivo seleccionado:", archivo, "para documento:", documento);
+    
+    // Guardar archivo en el objeto temporal antes de enviarlo
+    this.archivosSubidos[documento] = archivo;
+    
+    // ✅ Llamar a la función de subida de inmediato
+    this.subirDocumentosFaltantes(documento);
+},
+
 
     esVencido(fecha) {
     if (!fecha) return false; // Si no hay fecha, no se considera vencido
@@ -347,51 +434,102 @@ seleccionarCategoria(categoria) {
               year: "numeric"
           });
       },
-  async habilitarTrabajador() {
-  if (!this.empresaSeleccionada) {
-    Swal.fire("⚠️ Error", "Debes seleccionar una empresa.", "error");
-    return;
-  }
 
-  const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
-  if (!token) return;
-
-  try {
-    const response = await fetch(`http://localhost:5000/trabajadores/${this.trabajador_id}/generar-rar`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ empresa_id: this.empresaSeleccionada }) // 🚨 Asegurar que se envía el ID de la empresa
-    });
-
-    if (response.status === 400) {
-      const errorData = await response.json();
-      const faltantes = errorData.faltantes && Array.isArray(errorData.faltantes) && errorData.faltantes.length > 0 ? errorData.faltantes.join(", ") : "desconocidos";
-      Swal.fire("⚠️ Error", `Faltan documentos: ${faltantes}`, "error");
-      return;
+      async subirDocumentosFaltantes() {
+    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+    if (!token) {
+        Swal.fire("⚠️ Error", "No tienes autorización. Inicia sesión nuevamente.", "error");
+        this.$router.push("/");
+        return;
     }
 
-    if (!response.ok) throw new Error("Error al generar el .rar");
+    console.log("📤 Enviando archivos al backend...");
 
-    // Descargar el archivo
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `trabajador_${this.trabajador_id}.zip`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
+    const formData = new FormData();
 
-    Swal.fire("✅ Éxito", "El archivo .rar se ha generado correctamente.", "success");
-  } catch (error) {
-    console.error("❌ Error al generar .rar:", error);
-    Swal.fire("❌ Error", "Hubo un problema al generar el archivo.", "error");
-  }
+    Object.entries(this.archivosSubidos).forEach(([documento, archivo]) => {
+        console.log("📎 Agregando al FormData:", documento, archivo);
+        formData.append("archivo", archivo);
+        formData.append("nombre_archivo", archivo.name);
+        formData.append("tipo", documento); // 🔹 Asegurar que se envía el tipo de documento
+        formData.append("trabajador_id", this.trabajador_id); // 🔹 Agregar ID del trabajador}
+        formData.append("fecha_vencimiento", this.fechaVencimiento[documento]);
+    });
+
+    console.log("📦 FormData enviado:", [...formData.entries()]); // ✅ Verificar qué se está enviando
+
+    try {
+        const response = await fetch(`http://localhost:5000/trabajadores/${this.trabajador_id}/documentos`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}` }, // 🚨 No incluir 'Content-Type'
+            body: formData
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || "Error al subir el documento.");
+        }
+
+        console.log("✅ Documentos subidos correctamente");
+
+        // ⚡ Actualizar la lista de documentos después de la subida
+        await this.obtenerDocumentosFaltantes();
+        Swal.fire("✅ Éxito", "Documentos subidos correctamente.", "success");
+
+        // 🧹 Limpiar los archivos subidos después de enviarlos
+        this.archivosSubidos = {};
+
+    } catch (error) {
+        console.error("❌ Error al subir documentos:", error);
+        Swal.fire("⚠️ Error", "No se pudo subir el documento.", "error");
+    }
 },
+
+
+    async habilitarTrabajador() {
+      if (!this.empresaSeleccionada) {
+        Swal.fire("⚠️ Error", "Debes seleccionar una empresa.", "error");
+        return;
+      }
+
+      const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+      if (!token) return;
+
+      try {
+        const response = await fetch(`http://localhost:5000/trabajadores/${this.trabajador_id}/generar-rar`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ empresa_id: this.empresaSeleccionada })
+        });
+
+        if (response.status === 400) {
+          const errorData = await response.json();
+          const faltantes = errorData.faltantes?.length > 0 ? errorData.faltantes.join(", ") : "desconocidos";
+          Swal.fire("⚠️ Error", `Faltan documentos: ${faltantes}`, "error");
+          return;
+        }
+
+        if (!response.ok) throw new Error("Error al generar el .rar");
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `trabajador_${this.trabajador_id}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+
+        Swal.fire("✅ Éxito", "El archivo .rar se ha generado correctamente.", "success");
+      } catch (error) {
+        console.error("❌ Error al generar .rar:", error);
+        Swal.fire("❌ Error", "Hubo un problema al generar el archivo.", "error");
+      }
+    },
 
 async obtenerTiposDocumentos() {
     try {
@@ -412,6 +550,30 @@ async obtenerTiposDocumentos() {
   },
 
 
+  cerrarModalHabilitar() {
+      this.mostrarModalHabilitar = false;
+      this.empresaSeleccionada = "";
+      this.documentosFaltantes = [];
+      this.archivosSubidos = {};
+    },
+
+
+  obtenerNombreEmpresa(empresaId) {
+    const empresa = this.empresas.find(emp => emp.id === empresaId);
+    return empresa ? empresa.nombre : "";
+  },
+
+    guardarSeleccionEmpresa() {
+      if (!this.empresaTemporal) {
+    Swal.fire("⚠️ Error", "Debes seleccionar una empresa para continuar.", "error");
+    return;
+  }
+  
+  // ✅ Guardamos la empresa seleccionada solo cuando el usuario presiona el botón
+  this.empresaSeleccionada = this.empresaTemporal;
+  
+  console.log("✔ Empresa confirmada:", this.empresaSeleccionada);
+  },
 
   },
   created() {
@@ -620,6 +782,7 @@ async obtenerTiposDocumentos() {
 .documentos-container {
     padding: 20px;
     text-align: center;
+    color:black;
 }
 
 .barra-busqueda {
@@ -661,6 +824,23 @@ async obtenerTiposDocumentos() {
     font-size: 1.1rem;
     font-weight: bold;
     color: #134b91;
+}
+
+.boton-subir {
+  background: #007bff; /* Color azul para el botón de subir */
+  color: white;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+  display: inline-block;
+  margin-top: 10px;
+  margin-left: 90px;
+}
+
+.boton-subir:hover {
+  background: #0056b3; /* Color azul más oscuro al pasar el mouse */
 }
 
 </style>

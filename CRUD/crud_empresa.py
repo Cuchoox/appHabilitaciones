@@ -43,7 +43,6 @@ def create_empresa():
     data = request.json
     nueva_empresa = Empresa(
         nombre=data['nombre'],
-        localidad=data['localidad']
     )
     db.session.add(nueva_empresa)
     db.session.commit()
@@ -68,12 +67,17 @@ def update_empresa(id):
 @jwt_required()
 def delete_empresa(id):
     empresa = Empresa.query.get(id)
+    
     if not empresa:
         return jsonify({'message': 'Empresa no encontrada'}), 404
-    
-    db.session.delete(empresa)
-    db.session.commit()
-    return jsonify({'message': 'Empresa eliminada correctamente'})
+
+    try:
+        db.session.delete(empresa)
+        db.session.commit()
+        return jsonify({'message': 'Empresa eliminada correctamente'}), 200
+    except Exception as e:
+        db.session.rollback()  # ⚠️ Importante para evitar inconsistencias en la DB
+        return jsonify({'error': 'Error al eliminar empresa', 'detalle': str(e)}), 500
 
 
 # Obtener trabajadores asignados a una empresa

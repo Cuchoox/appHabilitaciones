@@ -172,6 +172,49 @@ export default {
     }
 },
 
+async agregarEmpresa() {
+    if (!this.nuevaEmpresa.trim()) {
+        Swal.fire("⚠️ Error", "El nombre de la empresa no puede estar vacío.", "error");
+        return;
+    }
+
+    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+    if (!token) {
+        Swal.fire("⚠️ Error", "No tienes autorización para realizar esta acción.", "error");
+        return;
+    }
+
+    try {
+        const response = await fetch("http://localhost:5000/empresas", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                nombre: this.nuevaEmpresa
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || "Error al agregar empresa.");
+        }
+
+        Swal.fire("✅ Éxito", "Empresa agregada correctamente.", "success");
+
+        // 🔄 Volver a cargar la lista de empresas después de agregar una nueva
+        await this.obtenerEmpresas();
+
+        // Cerrar modal y limpiar el campo
+        this.mostrarModalAgregar = false;
+        this.nuevaEmpresa = "";
+
+    } catch (error) {
+        console.error("❌ Error al agregar empresa:", error);
+        Swal.fire("⚠️ Error", error.message, "error");
+    }
+},
 
 
 
@@ -251,27 +294,56 @@ async agregarRequisito() {
 },
 
 
-      eliminarDocumento(index) {
+    eliminarDocumento(index) {
           this.empresaSeleccionada.documentos.splice(index, 1);
-      },
-      async eliminarEmpresa(empresa) {
-          if (empresa.trabajadores_activos > 0) {
-              Swal.fire("Error", "No puedes eliminar una empresa con trabajadores activos", "error");
-              return;
-          }
-          const confirmacion = await Swal.fire({
-              title: "¿Eliminar empresa?",
-              text: "Esta acción es irreversible",
-              icon: "warning",
-              showCancelButton: true,
-              confirmButtonText: "Sí, eliminar",
-              cancelButtonText: "Cancelar"
-          });
-          if (confirmacion.isConfirmed) {
-              this.empresas = this.empresas.filter(e => e !== empresa);
-              Swal.fire("Eliminado", "La empresa ha sido eliminada", "success");
-          }
-      },
+    },
+    async eliminarEmpresa(empresa) {
+    if (empresa.trabajadores_activos > 0) {
+        Swal.fire("⚠️ Error", "No puedes eliminar una empresa con trabajadores activos", "error");
+        return;
+    }
+
+    const confirmacion = await Swal.fire({
+        title: "¿Eliminar empresa?",
+        text: "Esta acción es irreversible.",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Sí, eliminar",
+        cancelButtonText: "Cancelar"
+    });
+
+    if (!confirmacion.isConfirmed) return;
+
+    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+    if (!token) {
+        Swal.fire("⚠️ Error", "No tienes autorización.", "error");
+        return;
+    }
+
+    try {
+        // Enviar petición DELETE al backend
+        const response = await fetch(`http://localhost:5000/empresas/${empresa.id}`, {
+            method: "DELETE",
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || "Error al eliminar empresa.");
+        }
+
+        Swal.fire("✅ Eliminado", "La empresa ha sido eliminada correctamente.", "success");
+
+        // 🔄 Volver a cargar la lista de empresas después de eliminar
+        await this.obtenerEmpresas();
+
+    } catch (error) {
+        console.error("❌ Error al eliminar empresa:", error);
+        Swal.fire("⚠️ Error", error.message, "error");
+    }
+},
+
+
       async guardarCambios() {
     const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
     if (!token) return;
