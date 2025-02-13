@@ -217,9 +217,13 @@ def generar_rar(trabajador_id):
     documentos_requeridos = [req.nombre_requisito for req in empresa.requisitos] if empresa.requisitos else []
     print(f"📋 Documentos requeridos por {empresa.nombre}: {documentos_requeridos}")
 
-    # Obtener los documentos del trabajador
-    documentos_trabajador = Documento.query.filter_by(trabajador_id=trabajador_id).all()
-    documentos_subidos = {doc.tipo for doc in documentos_trabajador} if documentos_trabajador else set()
+        # 🔹 Obtener los documentos del trabajador que coincidan con los requisitos
+    documentos_trabajador = Documento.query.filter(
+        Documento.trabajador_id == trabajador_id,
+        Documento.tipo.in_(documentos_requeridos)
+    ).all()
+    documentos_subidos = {doc.tipo for doc in documentos_trabajador}
+
     print(f"📂 Documentos subidos por el trabajador: {documentos_subidos}")
 
     # Verificar si faltan documentos

@@ -193,11 +193,11 @@ def eliminar_requisito(requisito_id):
     requisito = RequisitoEmpresa.query.get(requisito_id)
     if not requisito:
         return jsonify({"error": "Requisito no encontrado"}), 404
-    
+
     db.session.delete(requisito)
     db.session.commit()
-
     return jsonify({"message": "Requisito eliminado correctamente"}), 200
+
 
 @empresa_bp.route('/empresas/<int:empresa_id>/requisitos', methods=['PUT'])
 @jwt_required()

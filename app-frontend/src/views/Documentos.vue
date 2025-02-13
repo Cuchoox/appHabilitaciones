@@ -118,6 +118,7 @@ export default {
       archivoSeleccionado: null,
       empresas: [],
       empresaSeleccionada: "",
+      trabajadorSeleccionado:"",
       mostrarModalSubir: false,
       mostrarModalHabilitar: false,
       busquedaDocumento: "",
@@ -142,7 +143,9 @@ export default {
 
   },
   methods: {
+
     async obtenerTrabajador() {
+  
       this.trabajador_id = sessionStorage.getItem("trabajador_id");
       if (!this.trabajador_id) return;
       
@@ -156,6 +159,7 @@ export default {
 
       if (!response.ok) return;
       this.trabajador = await response.json();
+      this.trabajadorSeleccionado = this.trabajador; // Guardar el trabajador seleccionado
     },
     async obtenerDocumentos() {
       const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
@@ -347,51 +351,59 @@ seleccionarCategoria(categoria) {
               year: "numeric"
           });
       },
-  async habilitarTrabajador() {
-  if (!this.empresaSeleccionada) {
-    Swal.fire("⚠️ Error", "Debes seleccionar una empresa.", "error");
-    return;
-  }
 
-  const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
-  if (!token) return;
-
-  try {
-    const response = await fetch(`http://localhost:5000/trabajadores/${this.trabajador_id}/generar-rar`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ empresa_id: this.empresaSeleccionada }) // 🚨 Asegurar que se envía el ID de la empresa
-    });
-
-    if (response.status === 400) {
-      const errorData = await response.json();
-      const faltantes = errorData.faltantes && Array.isArray(errorData.faltantes) && errorData.faltantes.length > 0 ? errorData.faltantes.join(", ") : "desconocidos";
-      Swal.fire("⚠️ Error", `Faltan documentos: ${faltantes}`, "error");
-      return;
+    async habilitarTrabajador() {
+    // Verifica si trabajador y empresa están definidos antes de hacer la petición
+    if (!this.trabajadorSeleccionado || !this.trabajadorSeleccionado.id) {
+        console.error("❌ Error: No hay trabajador seleccionado.");
+        Swal.fire("❌ Error", "No hay trabajador seleccionado.", "error");
+        return;
     }
 
-    if (!response.ok) throw new Error("Error al generar el .rar");
+    if (!this.empresaSeleccionada) {
+        console.error("❌ Error: No se ha seleccionado una empresa.");
+        Swal.fire("❌ Error", "Debe seleccionar una empresa antes de continuar.", "error");
+        return;
+    }
 
-    // Descargar el archivo
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `trabajador_${this.trabajador_id}.zip`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
+    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+    if (!token) return;
 
-    Swal.fire("✅ Éxito", "El archivo .rar se ha generado correctamente.", "success");
-  } catch (error) {
-    console.error("❌ Error al generar .rar:", error);
-    Swal.fire("❌ Error", "Hubo un problema al generar el archivo.", "error");
-  }
+    try {
+        console.log(`📤 Enviando solicitud para generar .RAR: Trabajador ${this.trabajadorSeleccionado.id}, Empresa ${this.empresaSeleccionada}`);
+        
+        const response = await fetch(`http://localhost:5000/trabajadores/${this.trabajadorSeleccionado.id}/generar-rar`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ empresa_id: this.empresaSeleccionada })
+        });
+
+        if (!response.ok) {
+            throw new Error("Error al generar el .rar");
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `Documentos_${this.trabajadorSeleccionado.nombre}_${this.trabajadorSeleccionado.apellido}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        Swal.fire("✅ Generado", "El archivo .RAR se generó correctamente.", "success");
+
+    } catch (error) {
+        console.error("❌ Error al generar .rar:", error);
+        Swal.fire("❌ Error", "Hubo un problema al generar el .RAR.", "error");
+    }
 },
+
+
+
 
 async obtenerTiposDocumentos() {
     try {
@@ -419,6 +431,7 @@ async obtenerTiposDocumentos() {
     this.obtenerDocumentos();
     this.obtenerEmpresas();
     this.obtenerTiposDocumentos();
+ 
   }
 };
 </script>

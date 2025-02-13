@@ -53,7 +53,7 @@
                 <h2>Configurar Documentos para {{ empresaSeleccionada.nombre }}</h2>
 
                 <!-- Botones para Editar y Agregar Requisitos -->
-                <button class="editar" @click="editarDocumentos = !editarDocumentos">✏️ Editar</button>
+             <!--   <button class="editar" @click="editarDocumentos = !editarDocumentos">✏️ Editar</button>-->
                 <button class="boton agregar-requisito" @click="mostrarFormularioAgregar = true">➕ Agregar Requisito</button>
 
                 <!-- Formulario de Agregar Requisito -->
@@ -70,18 +70,19 @@
 
                 <!-- Lista de Requisitos -->
                 <ul v-if="empresaSeleccionada.requisitos && empresaSeleccionada.requisitos.length > 0">
-    <li v-for="(doc, index) in empresaSeleccionada.requisitos" :key="index">
-        📄 {{ doc.nombre_requisito }} - {{ doc.categoria }}
-        <button v-if="editarDocumentos" class="eliminar" @click="eliminarRequisito(index)">❌</button>
+    <li v-for="(requisito, index) in empresaSeleccionada.requisitos" :key="requisito.id || index">
+        📄 {{ requisito.nombre_requisito }} - {{ requisito.categoria }}
+        <button class="boton eliminar" @click="console.log('ID:', requisito.id) || eliminarRequisito(requisito.id)">🗑 Eliminar</button>
     </li>
 </ul>
+
 
 <!-- 🔹 Mensaje cuando no hay requisitos -->
 <p v-else>No hay requisitos configurados aún.</p>
 
 
                 <button class="boton guardar-cambios" @click="guardarCambios">💾 Guardar Cambios</button>
-                <button class="cerrar-modal" @click="mostrarModalConfigurar = false">❌ Cerrar</button>
+                <button class="boton cerrar-modal" @click="mostrarModalConfigurar = false">❌ Cerrar</button>
             </div>
         </div>
         <!-- Modal Trabajadores Activos -->
@@ -161,16 +162,20 @@ export default {
         if (!response.ok) throw new Error("Error al obtener requisitos");
 
         const data = await response.json();
-        console.log("📥 Requisitos recibidos:", data);  // Debugging
+        console.log("📥 Requisitos recibidos:", data);  // 🔹 Depuración para ver si los IDs llegan bien
 
-        // 🔹 Asegurar que `requisitos` siempre sea un array válido
-        this.empresaSeleccionada.requisitos = Array.isArray(data) ? data : [];
+        // 🔹 Asegurar que `requisitos` siempre sea un array
+        this.empresaSeleccionada.requisitos = Array.isArray(data) ? data.map(req => ({
+            id: req.id || Math.random(), // ✅ Asegurar un ID temporal si falta
+            nombre_requisito: req.nombre_requisito || "Desconocido",
+            categoria: req.categoria || "Sin categoría"
+        })) : [];
 
-        this.mostrarModalConfigurar = true;
     } catch (error) {
         console.error("❌ Error al obtener requisitos:", error);
     }
 },
+
 
 
 
@@ -211,25 +216,39 @@ async agregarRequisito() {
 
 
 
-    async eliminarRequisito(id, index) {
-        const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
-        if (!token) return;
+async eliminarRequisito(requisito_id) {
+    if (!requisito_id) {
+        console.error("❌ Error: ID de requisito no válido", requisito_id);
+        Swal.fire("⚠️ Error", "ID de requisito no válido.", "error");
+        return;
+    }
 
-        try {
-            const response = await fetch(`http://localhost:5000/requisitos/${id}`, {
-                method: "DELETE",
-                headers: { "Authorization": `Bearer ${token}` }
-            });
+    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
 
-            if (!response.ok) throw new Error("Error al eliminar requisito");
+    try {
+        const response = await fetch(`http://localhost:5000/requisitos/${requisito_id}`, {
+            method: "DELETE",
+            headers: {
+                "Authorization": `Bearer ${token}`
+            }
+        });
 
-            this.empresaSeleccionada.requisitos.splice(index, 1);
-            Swal.fire("✅ Eliminado", "Requisito eliminado correctamente", "success");
-
-        } catch (error) {
-            console.error("❌ Error al eliminar requisito:", error);
+        if (!response.ok) {
+            throw new Error("Error al eliminar requisito");
         }
-    },
+
+        Swal.fire("✅ Éxito", "Requisito eliminado correctamente.", "success");
+
+        // 🔹 Filtrar la lista de requisitos en el frontend en lugar de llamar nuevamente a la API
+        this.empresaSeleccionada.requisitos = this.empresaSeleccionada.requisitos.filter(req => req.id !== requisito_id);
+
+    } catch (error) {
+        console.error("❌ Error al eliminar requisito:", error);
+        Swal.fire("❌ Error", "No se pudo eliminar el requisito.", "error");
+    }
+},
+
+
 
     async configurarDocumentos(empresa) {
     await this.obtenerRequisitos(empresa);
@@ -469,7 +488,9 @@ async verTrabajadoresActivos(empresa) {
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
     max-width: 500px;
     width: 100%;
-    color:black;
+    color: black;
+    max-height: 80vh; /* Limitar la altura máxima del modal */
+    overflow-y: auto; /* Agregar scroll vertical si el contenido excede la altura máxima */
 }
 
 .modal input,
