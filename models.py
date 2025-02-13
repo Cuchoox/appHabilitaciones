@@ -85,7 +85,7 @@ class RequisitoEmpresa(db.Model):
     __tablename__ = 'requisitos_empresa'
     id = db.Column(db.Integer, primary_key=True)
     empresa_id = db.Column(db.Integer, db.ForeignKey('empresas.id'), nullable=False)
-    nombre_requisito = db.Column(db.String(255), nullable=False)
+    tipo = db.Column(db.String(255), nullable=False)
     categoria = db.Column(db.String(50), nullable=False)
-
+    nombre_requisito = db.Column(db.String(255), nullable=False)
     empresa = db.relationship("Empresa", back_populates="requisitos")

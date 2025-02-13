@@ -172,6 +172,9 @@ def obtener_requisitos(empresa_id):
 def agregar_requisito(empresa_id):
     data = request.get_json()
 
+    print("📥 Datos recibidos:", data)  # 🔹 Ver qué está llegando realmente
+
+    # 🔹 Verificar que `nombre_requisito` y `categoria` existen y no están vacíos
     if not data.get("nombre_requisito") or not data.get("categoria"):
         return jsonify({"error": "Faltan datos"}), 400
 
@@ -179,16 +182,32 @@ def agregar_requisito(empresa_id):
     if not empresa:
         return jsonify({"error": "Empresa no encontrada"}), 404
 
+    # 🔹 Forzar que `tipo` tenga un valor
+    tipo = str(data.get("nombre_requisito", "Sin nombre")).strip()
+    if not tipo:  # Si sigue vacío después del `strip()`, darle un valor por defecto
+        tipo = "Sin nombre"
+
+    print("✅ Tipo asignado:", tipo)  # 🔹 Depuración
+
     nuevo_requisito = RequisitoEmpresa(
         empresa_id=empresa_id,
         nombre_requisito=data["nombre_requisito"],
-        categoria=data["categoria"]
+        categoria=data["categoria"],
+        tipo=tipo  # ✅ Ahora `tipo` nunca será `None`
     )
 
     db.session.add(nuevo_requisito)
     db.session.commit()
 
-    return jsonify({"message": "Requisito agregado correctamente"}), 201
+    return jsonify({
+        "message": "Requisito agregado correctamente",
+        "id": nuevo_requisito.id,
+        "empresa_id": nuevo_requisito.empresa_id,
+        "nombre_requisito": nuevo_requisito.nombre_requisito,
+        "categoria": nuevo_requisito.categoria,
+        "tipo": nuevo_requisito.tipo  # ✅ Se devuelve para verificar en el frontend
+    }), 201
+
 
 
 @empresa_bp.route('/requisitos/<int:requisito_id>', methods=['DELETE'])
@@ -207,23 +226,24 @@ def eliminar_requisito(requisito_id):
 @jwt_required()
 def actualizar_requisitos(empresa_id):
     data = request.get_json()
-    empresa = Empresa.query.get_or_404(empresa_id)
+    requisitos = data.get("requisitos", [])
 
-    # 🔹 Limpiar requisitos actuales
-    empresa.requisitos.clear()
+    print("📥 Requisitos recibidos para actualizar:", requisitos)  # Debug
 
-    # 🔹 Convertir cada diccionario en una instancia de `RequisitoEmpresa`
-    for req in data["requisitos"]:
-        nuevo_requisito = RequisitoEmpresa(
-            empresa_id=empresa.id,
-            nombre_requisito=req["nombre_requisito"],
-            categoria=req["categoria"]
-        )
-        empresa.requisitos.append(nuevo_requisito)
+    if not requisitos:
+        return jsonify({"error": "No se enviaron requisitos"}), 400
+
+    for req_data in requisitos:
+        requisito = RequisitoEmpresa.query.get(req_data.get("id"))
+        if requisito:
+            requisito.nombre_requisito = req_data.get("nombre_requisito", requisito.nombre_requisito).strip()
+            requisito.categoria = req_data.get("categoria", requisito.categoria).strip()
+            requisito.tipo = req_data.get("tipo", requisito.nombre_requisito).strip()  # ✅ Evitar `None`
 
     db.session.commit()
 
     return jsonify({"message": "Requisitos actualizados correctamente"}), 200
+
 
 
 @empresa_bp.route('/empresas/<int:empresa_id>/desvincular/<int:trabajador_id>', methods=['DELETE'])

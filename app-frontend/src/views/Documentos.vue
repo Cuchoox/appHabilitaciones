@@ -70,27 +70,42 @@
     <!-- LISTADO DE DOCUMENTOS FALTANTES -->
     <div v-if="empresaSeleccionada" class="documentos-container">
       <h3>Documentos requeridos para {{ obtenerNombreEmpresa(empresaSeleccionada) }}:</h3>
+      
       <ul v-if="documentosFaltantes && documentosFaltantes.length">
-        <li v-for="documento in documentosFaltantes" :key="documento">
-    <span :class="{'completo': archivosSubidos[documento]}">
-      {{ archivosSubidos[documento] ? '✅' : '❌' }} {{ documento }}
-    </span>
+    <li v-for="documento in documentosFaltantes" :key="documento.tipo">
+        <span :class="{'completo': documento.subido}">
+            {{ documento.subido ? '✅' : '❌' }} {{ documento.tipo }} 
+        </span>
 
-    <!-- Input de fecha -->
-    <input type="date" v-model="fechaVencimiento[documento]" class="input-fecha" required />
+        <!-- Mostrar el nombre del archivo si ya está subido -->
+        <span v-if="documento.subido">
+            📄 ({{ documento.nombre_archivo }})
+        </span>
 
-    <!-- Botón para seleccionar archivo -->
-    <input type="file" @change="seleccionarArchivo($event, documento)" />
+        <!-- Si el archivo está subido, mostrar botón de reemplazar -->
+        <div v-if="documento.subido && !documento.reemplazando">
+            <button class="boton reemplazar" @click="documento.reemplazando = true">🔄 Reemplazar Archivo</button>
+        </div>
 
-    <button 
-      v-if="archivosSubidos[documento]" 
-      class="boton eliminar" 
-      @click="eliminarArchivo(documento)">
-      ❌
-    </button>
-  </li>
+        <!-- Mostrar opciones de subir/reemplazar si se está reemplazando o si no hay archivo subido -->
+        <div v-if="!documento.subido || documento.reemplazando">
+            <input type="date" v-model="fechaVencimiento[documento.tipo]" class="input-fecha" required />
+            <input type="file" @change="seleccionarArchivo($event, documento.tipo)" class="input-archivo" accept=".jpg, .png, .pdf" />
+            <button class="boton subir" @click="subirDocumento(documento.tipo)">
+                {{ documento.subido ? '📤 Confirmar Reemplazo' : '📤 Subir Documento' }}
+            </button>
+            <button v-if="documento.subido" class="boton cancelar" @click="documento.reemplazando = false">❌ Cancelar</button>
+        </div>
+    </li>
 </ul>
-<p v-else>No hay documentos requeridos para esta empresa.</p>
+
+
+
+<!-- Botón para generar .rar solo cuando todos los documentos están subidos -->
+<button v-if="documentosFaltantes.every(doc => doc.subido)" class="boton generar-rar" @click="habilitarTrabajador">
+  📂 Generar .RAR
+</button>
+
 
     </div>
 
@@ -120,7 +135,7 @@ export default {
       busqueda: "",
       categorias: ["Administrativos", "Salud y Seguridad", "Capacitación y Certificaciones"],
       categoriaSeleccionada: "",
-      fechaVencimiento: "",
+      fechaVencimiento: {},
       archivoSeleccionado: null,
       empresas: [],
       empresaTemporal: "", // 🔹 Nueva variable temporal
@@ -200,11 +215,9 @@ async obtenerDocumentosFaltantes() {
     console.log("📡 Intentando obtener documentos faltantes...");
     
     let token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
-
     if (!token) {
-        console.error("❌ No hay token de autenticación. Redirigiendo al login...");
         Swal.fire("⚠️ Sesión expirada", "Debes iniciar sesión nuevamente.", "error");
-        this.$router.push("/");  // 🔄 Redirigir al login
+        this.$router.push("/");
         return;
     }
 
@@ -226,11 +239,19 @@ async obtenerDocumentosFaltantes() {
         const data = await response.json();
         console.log("📥 Respuesta del backend:", data);
 
-        this.documentosFaltantes = data.faltantes || [];
+        // ✅ Ahora asignamos los datos correctamente
+        this.documentosFaltantes = data.documentos.map(doc => ({
+            nombre_archivo: doc.nombre_archivo || "Pendiente",
+            tipo: doc.tipo,
+            fecha_vencimiento: doc.fecha_vencimiento || "Sin fecha",
+            subido: doc.subido
+        }));
+
     } catch (error) {
         console.error("❌ Error al obtener documentos faltantes:", error);
     }
 },
+
 async guardarDocumentos() {
     const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
 
@@ -299,19 +320,12 @@ cargarDocumentosEmpresa() {
   console.log("🏢 Empresa seleccionada:", this.empresaSeleccionada); // Verificar ID empresa
   this.obtenerDocumentosFaltantes();
 },
-
-seleccionarArchivo(event, documento) {
-    const archivo = event.target.files[0];
-    
-    if (!archivo) return;
-
-    console.log("📂 Archivo seleccionado:", archivo, "para documento:", documento);
-    
-    // Guardar archivo en el objeto temporal antes de enviarlo
-    this.archivosSubidos[documento] = archivo;
-    
-    // ✅ Llamar a la función de subida de inmediato
-    this.subirDocumentosFaltantes(documento);
+seleccionarArchivo(event, tipoDocumento) {
+    const archivo = event.target.files[0];  // Obtener archivo seleccionado
+    if (archivo) {
+        this.archivosSubidos[tipoDocumento] = archivo;  // Guardar archivo en el estado
+        console.log(`📂 Archivo seleccionado para ${tipoDocumento}:`, archivo.name);
+    }
 },
 
 
@@ -435,55 +449,54 @@ seleccionarCategoria(categoria) {
           });
       },
 
-      async subirDocumentosFaltantes() {
-    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
-    if (!token) {
-        Swal.fire("⚠️ Error", "No tienes autorización. Inicia sesión nuevamente.", "error");
-        this.$router.push("/");
+      async subirDocumento(tipoDocumento) {
+    const archivoSeleccionado = this.archivosSubidos[tipoDocumento];
+    const fechaVencimiento = this.fechaVencimiento[tipoDocumento];
+
+    if (!archivoSeleccionado || !fechaVencimiento) {
+        Swal.fire("⚠️ Error", "Debe seleccionar un archivo y una fecha de vencimiento.", "error");
         return;
     }
 
-    console.log("📤 Enviando archivos al backend...");
+    let token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
 
-    const formData = new FormData();
-
-    Object.entries(this.archivosSubidos).forEach(([documento, archivo]) => {
-        console.log("📎 Agregando al FormData:", documento, archivo);
-        formData.append("archivo", archivo);
-        formData.append("nombre_archivo", archivo.name);
-        formData.append("tipo", documento); // 🔹 Asegurar que se envía el tipo de documento
-        formData.append("trabajador_id", this.trabajador_id); // 🔹 Agregar ID del trabajador}
-        formData.append("fecha_vencimiento", this.fechaVencimiento[documento]);
+    console.log("📤 Subiendo archivo:", {
+        archivo: archivoSeleccionado.name,
+        tipo: tipoDocumento,
+        fecha_vencimiento: fechaVencimiento
     });
 
-    console.log("📦 FormData enviado:", [...formData.entries()]); // ✅ Verificar qué se está enviando
+    const formData = new FormData();
+    formData.append("archivo", archivoSeleccionado);
+    formData.append("tipo", tipoDocumento);
+    formData.append("fecha_vencimiento", fechaVencimiento);
 
     try {
         const response = await fetch(`http://localhost:5000/trabajadores/${this.trabajador_id}/documentos`, {
             method: "POST",
-            headers: { "Authorization": `Bearer ${token}` }, // 🚨 No incluir 'Content-Type'
+            headers: { "Authorization": `Bearer ${token}` },
             body: formData
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || "Error al subir el documento.");
+            const errorResponse = await response.json();
+            console.error("❌ Error del backend:", errorResponse);
+            throw new Error(errorResponse.error || "Error al subir documento");
         }
 
-        console.log("✅ Documentos subidos correctamente");
+        Swal.fire("✅ Éxito", "Documento subido correctamente.", "success");
 
-        // ⚡ Actualizar la lista de documentos después de la subida
+        // 🔄 **Actualizar lista de documentos después de la subida**
         await this.obtenerDocumentosFaltantes();
-        Swal.fire("✅ Éxito", "Documentos subidos correctamente.", "success");
 
-        // 🧹 Limpiar los archivos subidos después de enviarlos
-        this.archivosSubidos = {};
+        this.archivosSubidos[tipoDocumento] = null;  // Reset archivo seleccionado
 
     } catch (error) {
-        console.error("❌ Error al subir documentos:", error);
-        Swal.fire("⚠️ Error", "No se pudo subir el documento.", "error");
+        console.error("❌ Error al subir documento:", error);
+        Swal.fire("❌ Error", error.message, "error");
     }
 },
+
 
 
     async habilitarTrabajador() {
@@ -686,20 +699,45 @@ async obtenerTiposDocumentos() {
 
 .acciones {
   display: flex;
-  gap: 15px;
-  margin-top: 20px;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 15px;
 }
 
+.acciones {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 15px;
+}
 .boton {
-  background: #28a745; /* Color verde para botones principales */
-  color: white;
-  padding: 12px 18px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.3s ease;
+    background: #28a745;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.3s ease;
 }
-
+.boton.rojo {
+    background: #dc3545;
+}
+.boton.rar {
+    background: #007bff;
+    display: none;
+}
+.boton:hover {
+    opacity: 0.9;
+}
+.documentos-completos .boton.rar {
+    display: inline-block;
+}
+.documentos-container h3 {
+    font-size: 16px;
+    color: #333;
+    margin-bottom: 10px;
+}
 .boton-descargar {
   background: #28a745; /* Color verde para botones principales */
   color: white;
@@ -757,34 +795,51 @@ async obtenerTiposDocumentos() {
 }
 
 .modal {
-  background: white;
-  padding: 30px;
-  border-radius: 12px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-  text-align: center;
-  max-width: 500px;
-  width: 100%;
+    background: white;
+    padding: 25px;
+    border-radius: 10px;
+    box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.2);
+    width: 800px;
+    text-align: center;
 }
-
+.modal h2 {
+    color: #333;
+    margin-bottom: 15px;
+}
 .input-archivo,
 .input-fecha,
 .select-tipo,
 .select-categoria,
 .select-empresa {
-  width: 100%;
-  padding: 10px;
-  margin: 10px 0;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  font-size: 1rem;
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
 }
 
 .documentos-container {
-    padding: 20px;
-    text-align: center;
-    color:black;
+    text-align: left;
+    margin-bottom: 15px;
+    background: #f1f1f1;
+    padding: 15px;
+    border-radius: 8px;
 }
-
+.documento {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    border-bottom: 1px solid #ccc;
+    background: white;
+    border-radius: 5px;
+    margin-bottom: 5px;
+}
+.documento span {
+    flex: 1;
+    font-size: 14px;
+    font-weight: bold;
+}
 .barra-busqueda {
     width: 50%;
     padding: 10px;

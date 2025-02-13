@@ -1,6 +1,6 @@
 import zipfile
 from flask import Blueprint, jsonify, request, make_response, send_file
-from models import Empresa, db, Trabajador, HistorialAsignacion, Documento
+from models import Empresa, RequisitoEmpresa, db, Trabajador, HistorialAsignacion, Documento
 import logging
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from werkzeug.utils import secure_filename
@@ -156,31 +156,33 @@ def subir_documento(trabajador_id):
         return jsonify({"error": "No se ha seleccionado ningún archivo"}), 422
 
     data = request.form
-    print("📥 Datos recibidos:", data)  # 🔹 Depuración
+    print("📥 Datos recibidos en el backend:", data)  # 🔹 Ver qué llega desde el frontend
 
     categoria = data.get("categoria")
     fecha_vencimiento = data.get("fecha_vencimiento")
     tipo_documento = data.get("tipo")
 
-    if not categoria or not fecha_vencimiento or not tipo_documento:
-        return jsonify({"error": "Todos los campos son obligatorios (categoría, fecha de vencimiento, tipo)."}), 422
+    print(f"📂 Archivo recibido: {archivo.filename}")  # Debugging
+    print(f"📅 Fecha de vencimiento recibida: {fecha_vencimiento}")  # Debugging
+    print(f"📄 Tipo de documento recibido: {tipo_documento}")  # Debugging
 
-    # 🔹 Verificar si el trabajador existe
+    if not fecha_vencimiento or not tipo_documento:
+        return jsonify({"error": "Todos los campos son obligatorios (fecha de vencimiento, tipo)."}), 422
+
+    # 🔹 Buscar el trabajador
     trabajador = Trabajador.query.get(trabajador_id)
     if not trabajador:
         return jsonify({"error": "El trabajador no existe"}), 404
 
-    # 🔹 Renombrar el archivo como "Tipo - Nombre Apellido"
-    nombre_trabajador = f"{trabajador.nombre} {trabajador.apellido}"
+    # 🔹 Renombrar archivo correctamente
     extension = archivo.filename.split('.')[-1]
-    nuevo_nombre_archivo = f"{tipo_documento} - {nombre_trabajador}.{extension}"
+    nuevo_nombre_archivo = f"{tipo_documento} - {trabajador.nombre} {trabajador.apellido}.{extension}"
 
-    # 🔹 Guardar el archivo en el servidor
+    # 🔹 Guardar el archivo
     ruta_archivo = os.path.join(UPLOAD_FOLDER, nuevo_nombre_archivo)
     archivo.save(ruta_archivo)
-    print(f"📂 Archivo guardado en: {ruta_archivo}")  # Depuración
 
-    # 🔹 Crear y guardar el documento en la base de datos
+    # 🔹 Guardar en la base de datos
     nuevo_documento = Documento(
         trabajador_id=trabajador_id,
         nombre_archivo=nuevo_nombre_archivo,
@@ -191,9 +193,22 @@ def subir_documento(trabajador_id):
     )
 
     db.session.add(nuevo_documento)
-    db.session.commit()  # 🔹 Aquí se guarda en la base de datos
+    db.session.commit()
 
     return jsonify({"mensaje": "Documento subido correctamente"}), 201
+
+
+
+# 🔹 Función para obtener la categoría automáticamente
+def obtener_categoria_por_tipo(tipo_documento):
+    categorias_por_tipo = {
+        "carnet": "Administrativos",
+        "licencia": "Salud y Seguridad",
+        "certificado": "Capacitación y Certificaciones",
+        "contrato": "Administrativos",
+        "seguro": "Salud y Seguridad"
+    }
+    return categorias_por_tipo.get(tipo_documento)
 
 
 
@@ -201,18 +216,17 @@ def subir_documento(trabajador_id):
 @jwt_required()
 def generar_rar(trabajador_id):
     data = request.get_json()
-    empresa_nombre = data.get("empresa_id")
+    empresa_id = data.get("empresa_id")  # 🔹 Cambiar nombre de variable para claridad
 
-    print(f"📥 Empresa nombre recibido: {empresa_nombre}")  # 📌 Verificar si llega correctamente
+    print(f"📥 Empresa ID recibido: {empresa_id}")  # 📌 Depuración
 
-    if not empresa_nombre:
+    if not empresa_id:
         return jsonify({"error": "Falta el campo 'empresa_id'"}), 400
 
-    empresa = Empresa.query.filter_by(nombre=empresa_nombre).first()
+    empresa = Empresa.query.get(empresa_id)
     if not empresa:
         print("❌ Empresa no encontrada")
         return jsonify({"error": "Empresa no encontrada"}), 404
-
     # Obtener los requisitos de la empresa
     documentos_requeridos = [req.nombre_requisito for req in empresa.requisitos] if empresa.requisitos else []
     print(f"📋 Documentos requeridos por {empresa.nombre}: {documentos_requeridos}")
@@ -303,23 +317,44 @@ def generar_rar(trabajador_id):
     return send_file(ruta_zip, as_attachment=True, download_name=f"Documentos_{trabajador_nombre}.zip")
 
 
-@trabajador_bp.route("/trabajadores/<int:trabajador_id>/documentos-faltantes", methods=["GET"])
+@trabajador_bp.route('/trabajadores/<int:trabajador_id>/documentos-faltantes', methods=['GET'])
 @jwt_required()
 def obtener_documentos_faltantes(trabajador_id):
     empresa_id = request.args.get("empresa_id")
+    if not empresa_id:
+        return jsonify({"error": "Falta el ID de la empresa"}), 400
 
-    # Buscar la empresa
     empresa = Empresa.query.get(empresa_id)
     if not empresa:
         return jsonify({"error": "Empresa no encontrada"}), 404
 
-    # Obtener los documentos requeridos para esa empresa
-    documentos_requeridos = {req.nombre_requisito for req in empresa.requisitos}
+    # Obtener los requisitos de la empresa
+    requisitos_empresa = RequisitoEmpresa.query.filter_by(empresa_id=empresa_id).all()
+    if not requisitos_empresa:
+        return jsonify({"error": "Esta empresa no tiene requisitos configurados"}), 404
 
-    # Obtener los documentos que el trabajador ya subió
-    documentos_trabajador = {doc.tipo for doc in Documento.query.filter_by(trabajador_id=trabajador_id).all()}
+    # Obtener los documentos del trabajador
+    documentos_trabajador = Documento.query.filter_by(trabajador_id=trabajador_id).all()
+    documentos_subidos = {doc.tipo: doc for doc in documentos_trabajador}
 
-    # Identificar los documentos que faltan
-    documentos_faltantes = list(documentos_requeridos - documentos_trabajador)
+    # Verificar qué requisitos faltan
+    documentos_faltantes = []
+    for requisito in requisitos_empresa:
+        if requisito.tipo in documentos_subidos:
+            doc = documentos_subidos[requisito.tipo]
+            documentos_faltantes.append({
+                "nombre_archivo": doc.nombre_archivo,
+                "tipo": doc.tipo,
+                "fecha_vencimiento": doc.fecha_vencimiento.strftime("%Y-%m-%d") if doc.fecha_vencimiento else None,
+                "subido": True  # ✅ Documento subido correctamente
+            })
+        else:
+            documentos_faltantes.append({
+                "nombre_archivo": None,
+                "tipo": requisito.tipo,  
+                "fecha_vencimiento": None,
+                "subido": False  # ✅ Documento aún no subido
+            })
 
-    return jsonify({"faltantes": documentos_faltantes}), 200
+    return jsonify({"documentos": documentos_faltantes})
+

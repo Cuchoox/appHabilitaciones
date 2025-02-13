@@ -30,7 +30,11 @@
       <button class="config-docs" @click="configurarDocumentos(empresa)">📄 Configurar</button>
     </td>
     <td>
-      <button class="eliminar" @click="eliminarEmpresa(empresa)">❌ Eliminar</button>
+        <td>
+    <button class="eliminar" @click="eliminarEmpresa(empresa)" :disabled="empresa.trabajadores_activos > 0">
+        ❌ Eliminar
+    </button>
+</td>
     </td>
   </tr>
 </tbody>
@@ -53,7 +57,7 @@
                 <h2>Configurar Documentos para {{ empresaSeleccionada.nombre }}</h2>
 
                 <!-- Botones para Editar y Agregar Requisitos -->
-                <button class="editar" @click="editarDocumentos = !editarDocumentos">✏️ Editar</button>
+                <button class="boton editar" @click="editarDocumentos = !editarDocumentos">✏️ Editar</button>
                 <button class="boton agregar-requisito" @click="mostrarFormularioAgregar = true">➕ Agregar Requisito</button>
 
                 <!-- Formulario de Agregar Requisito -->
@@ -61,9 +65,9 @@
                     <input type="text" v-model="nuevoDocumento.nombre" placeholder="Nombre del documento" />
                     <select v-model="nuevoDocumento.categoria">
                         <option disabled value="">Seleccione una categoría</option>
-                        <option>Personal</option>
-                        <option>Licencias</option>
-                        <option>Certificaciones</option>
+                        <option>Administrativos</option>
+                        <option>Salud y Seguridad</option>
+                        <option>Capacitación y Certificaciones</option>
                     </select>
                     <button class="boton agregar-doc" @click="agregarRequisito">➕ Guardar</button>
                 </div>
@@ -72,16 +76,17 @@
                 <ul v-if="empresaSeleccionada.requisitos && empresaSeleccionada.requisitos.length > 0">
     <li v-for="(doc, index) in empresaSeleccionada.requisitos" :key="index">
         📄 {{ doc.nombre_requisito }} - {{ doc.categoria }}
-        <button v-if="editarDocumentos" class="eliminar" @click="eliminarRequisito(index)">❌</button>
+        <button v-if="editarDocumentos" class="boton eliminar" @click="eliminarRequisito(doc.id)">🗑 Eliminar</button>
     </li>
 </ul>
+
 
 <!-- 🔹 Mensaje cuando no hay requisitos -->
 <p v-else>No hay requisitos configurados aún.</p>
 
 
                 <button class="boton guardar-cambios" @click="guardarCambios">💾 Guardar Cambios</button>
-                <button class="cerrar-modal" @click="mostrarModalConfigurar = false">❌ Cerrar</button>
+                <button class="boton cerrar-modal" @click="mostrarModalConfigurar = false">❌ Cerrar</button>
             </div>
         </div>
         <!-- Modal Trabajadores Activos -->
@@ -161,7 +166,7 @@ export default {
         if (!response.ok) throw new Error("Error al obtener requisitos");
 
         const data = await response.json();
-        console.log("📥 Requisitos recibidos:", data);  // Debugging
+        console.log("📥 Requisitos recibidos:", data);  // 🔹 Depuración
 
         // 🔹 Asegurar que `requisitos` siempre sea un array válido
         this.empresaSeleccionada.requisitos = Array.isArray(data) ? data : [];
@@ -169,8 +174,11 @@ export default {
         this.mostrarModalConfigurar = true;
     } catch (error) {
         console.error("❌ Error al obtener requisitos:", error);
+        this.empresaSeleccionada.requisitos = []; // 🔹 Evitar que sea undefined
     }
-},
+}
+,
+
 
 async agregarEmpresa() {
     if (!this.nuevaEmpresa.trim()) {
@@ -219,11 +227,21 @@ async agregarEmpresa() {
 
 
 async agregarRequisito() {
-    if (!this.nuevoDocumento.nombre.trim() || !this.nuevoDocumento.categoria) return;
+    if (!this.nuevoDocumento.nombre.trim() || !this.nuevoDocumento.categoria) {
+        Swal.fire("⚠️ Error", "Todos los campos son obligatorios.", "error");
+        return;
+    }
+
     const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
     if (!token) return;
 
     try {
+        console.log("📤 Enviando datos:", {
+            nombre_requisito: this.nuevoDocumento.nombre.trim(),
+            tipo: this.nuevoDocumento.nombre.trim(),  // ✅ Asegurar que "tipo" se envía
+            categoria: this.nuevoDocumento.categoria
+        });
+
         const response = await fetch(`http://localhost:5000/empresas/${this.empresaSeleccionada.id}/requisitos`, {
             method: "POST",
             headers: {
@@ -231,19 +249,19 @@ async agregarRequisito() {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                nombre_requisito: this.nuevoDocumento.nombre,
+                nombre_requisito: this.nuevoDocumento.nombre.trim(),
+                tipo: this.nuevoDocumento.nombre.trim(),  // ✅ Ahora "tipo" se envía correctamente
                 categoria: this.nuevoDocumento.categoria
             })
         });
 
         if (!response.ok) throw new Error("Error al agregar requisito");
 
-        // ✅ Volver a obtener los requisitos desde el backend para actualizar la lista en la UI
         await this.obtenerRequisitos(this.empresaSeleccionada);
 
         Swal.fire("✅ Agregado", "Requisito agregado correctamente", "success");
 
-        // ✅ Limpiar el formulario
+        // 🔄 Limpiar el formulario
         this.nuevoDocumento = { nombre: "", categoria: "" };
 
     } catch (error) {
@@ -254,25 +272,40 @@ async agregarRequisito() {
 
 
 
-    async eliminarRequisito(id, index) {
-        const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
-        if (!token) return;
 
-        try {
-            const response = await fetch(`http://localhost:5000/requisitos/${id}`, {
-                method: "DELETE",
-                headers: { "Authorization": `Bearer ${token}` }
-            });
+async eliminarRequisito(id) {
+    if (!id || id === 0) {
+        console.error("❌ Error: ID de requisito no válido", id);
+        Swal.fire("⚠️ Error", "ID de requisito no válido.", "error");
+        return;
+    }
 
-            if (!response.ok) throw new Error("Error al eliminar requisito");
+    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
 
-            this.empresaSeleccionada.requisitos.splice(index, 1);
-            Swal.fire("✅ Eliminado", "Requisito eliminado correctamente", "success");
+    try {
+        const response = await fetch(`http://localhost:5000/requisitos/${id}`, {
+            method: "DELETE",
+            headers: {
+                "Authorization": `Bearer ${token}`
+            }
+        });
 
-        } catch (error) {
-            console.error("❌ Error al eliminar requisito:", error);
+        if (!response.ok) {
+            throw new Error("Error al eliminar requisito");
         }
-    },
+
+        Swal.fire("✅ Éxito", "Requisito eliminado correctamente.", "success");
+
+        // 🔄 Volver a obtener la lista de requisitos después de eliminar
+        await this.obtenerRequisitos(this.empresaSeleccionada);
+
+    } catch (error) {
+        console.error("❌ Error al eliminar requisito:", error);
+        Swal.fire("❌ Error", "No se pudo eliminar el requisito.", "error");
+    }
+},
+
+
 
     async configurarDocumentos(empresa) {
     await this.obtenerRequisitos(empresa);
@@ -344,9 +377,17 @@ async agregarRequisito() {
 },
 
 
-      async guardarCambios() {
+async guardarCambios() {
     const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
     if (!token) return;
+
+    // 🔹 Asegurar que todos los requisitos tienen un `tipo`
+    this.empresaSeleccionada.requisitos = this.empresaSeleccionada.requisitos.map(req => ({
+        ...req,
+        tipo: req.tipo ? req.tipo.trim() : req.nombre_requisito.trim()  // ✅ Si `tipo` está vacío, usar `nombre_requisito`
+    }));
+
+    console.log("📤 Enviando requisitos corregidos:", this.empresaSeleccionada.requisitos);
 
     try {
         const response = await fetch(`http://localhost:5000/empresas/${this.empresaSeleccionada.id}/requisitos`, {
@@ -372,6 +413,8 @@ async agregarRequisito() {
         Swal.fire("❌ Error", "No se pudieron guardar los requisitos", "error");
     }
 },
+
+
 async verTrabajadoresActivos(empresa) {
       this.empresaSeleccionada = empresa;
       const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
@@ -530,7 +573,7 @@ async verTrabajadoresActivos(empresa) {
   margin-top: 5px;
   cursor: pointer;
 }
-.editar { background: white; color: black; }
+
 
 /* Modales mejorados */
 .modal {

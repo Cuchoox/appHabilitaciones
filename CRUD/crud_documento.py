@@ -2,8 +2,7 @@ from flask import Blueprint, jsonify, request, send_file
 from models import RequisitoEmpresa, db, Documento, Trabajador, Empresa
 from flask_jwt_extended import jwt_required
 import os
-import shutil
-import rarfile
+
 
 # Crear un Blueprint para Documento
 documento_bp = Blueprint('documento_bp', __name__)
