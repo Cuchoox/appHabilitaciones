@@ -152,7 +152,7 @@ export default {
       const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
       if (!token) return;
 
-      const response = await fetch(`http://localhost:5000/trabajadores/${this.trabajador_id}`, {
+      const response = await fetch(`https://apphabilitaciones.onrender.com/trabajadores/${this.trabajador_id}`, {
         method: "GET",
         headers: { "Authorization": `Bearer ${token}` }
       });
@@ -165,7 +165,7 @@ export default {
       const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
       if (!token) return;
 
-      const response = await fetch(`http://localhost:5000/documentos?trabajador_id=${this.trabajador_id}`, {
+      const response = await fetch(`https://apphabilitaciones.onrender.com/documentos?trabajador_id=${this.trabajador_id}`, {
         method: "GET",
         headers: { "Authorization": `Bearer ${token}` }
       });
@@ -202,7 +202,7 @@ export default {
     formData.append("tipo", this.tipoDocumentoSeleccionado);  // 👈 Verificar que no sea undefined
 
     try {
-        const response = await fetch(`http://localhost:5000/trabajadores/${this.trabajador_id}/documentos`, {
+        const response = await fetch(`https://apphabilitaciones.onrender.com/trabajadores/${this.trabajador_id}/documentos`, {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${token}` // No incluir "Content-Type" porque es FormData
@@ -247,7 +247,7 @@ seleccionarArchivo(event) {
   }
 
   try {
-    const response = await fetch(`http://localhost:5000/documentos/${documento.id}/descargar`, {
+    const response = await fetch(`https://apphabilitaciones.onrender.com/documentos/${documento.id}/descargar`, {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${token}`
@@ -292,7 +292,7 @@ async eliminarDocumento(documentoId) {
   }
 
   try {
-    const response = await fetch(`http://localhost:5000/documentos/${documentoId}`, {
+    const response = await fetch(`https://apphabilitaciones.onrender.com/documentos/${documentoId}`, {
       method: "DELETE",
       headers: {
         "Authorization": `Bearer ${token}`
@@ -323,7 +323,7 @@ seleccionarCategoria(categoria) {
         return;
       }
 
-      const response = await fetch("http://localhost:5000/empresas", {
+      const response = await fetch("https://apphabilitaciones.onrender.com/empresas", {
         method: "GET",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -372,7 +372,7 @@ seleccionarCategoria(categoria) {
     try {
         console.log(`📤 Enviando solicitud para generar .RAR: Trabajador ${this.trabajadorSeleccionado.id}, Empresa ${this.empresaSeleccionada}`);
         
-        const response = await fetch(`http://localhost:5000/trabajadores/${this.trabajadorSeleccionado.id}/generar-rar`, {
+        const response = await fetch(`https://apphabilitaciones.onrender.com/trabajadores/${this.trabajadorSeleccionado.id}/generar-rar`, {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -410,7 +410,7 @@ async obtenerTiposDocumentos() {
       const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
       if (!token) return;
 
-      const response = await fetch("http://localhost:5000/documentos/tipos", {
+      const response = await fetch("https://apphabilitaciones.onrender.com/documentos/tipos", {
         method: "GET",
         headers: { "Authorization": `Bearer ${token}` }
       });

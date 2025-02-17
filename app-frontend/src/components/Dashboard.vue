@@ -106,9 +106,9 @@
         if (!token) return;
         try {
             const [trabajadoresRes, empresasRes, documentosRes] = await Promise.all([
-                fetch("http://localhost:5000/trabajadores/count", { headers: { "Authorization": `Bearer ${token}` } }),
-                fetch("http://localhost:5000/empresas/count", { headers: { "Authorization": `Bearer ${token}` } }),
-                fetch("http://localhost:5000/documentos/count", { headers: { "Authorization": `Bearer ${token}` } })
+                fetch("https://apphabilitaciones.onrender.com/trabajadores/count", { headers: { "Authorization": `Bearer ${token}` } }),
+                fetch("https://apphabilitaciones.onrender.com/empresas/count", { headers: { "Authorization": `Bearer ${token}` } }),
+                fetch("https://apphabilitaciones.onrender.com/documentos/count", { headers: { "Authorization": `Bearer ${token}` } })
             ]);
             this.workersCount = (await trabajadoresRes.json()).count;
             this.companiesCount = (await empresasRes.json()).count;
@@ -121,7 +121,7 @@
         const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
         if (!token) return;
         try {
-            const response = await fetch("http://localhost:5000/documentos-general", {
+            const response = await fetch("https://apphabilitaciones.onrender.com/documentos-general", {
                 method: "GET",
                 headers: { "Authorization": `Bearer ${token}` }
             });

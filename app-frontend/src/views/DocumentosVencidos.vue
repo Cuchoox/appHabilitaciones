@@ -44,7 +44,7 @@
         const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
         if (!token) return;
         try {
-          const response = await fetch("http://localhost:5000/documentos-vencidos", {
+          const response = await fetch("https://apphabilitaciones.onrender.com/documentos-vencidos", {
             method: "GET",
             headers: { "Authorization": `Bearer ${token}` }
           });

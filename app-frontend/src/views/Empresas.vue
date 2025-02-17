@@ -138,7 +138,7 @@ export default {
           const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
           if (!token) return;
           try {
-              const response = await fetch("http://localhost:5000/empresas", {
+              const response = await fetch("https://apphabilitaciones.onrender.com/empresas", {
                   method: "GET",
                   headers: { "Authorization": `Bearer ${token}` }
               });
@@ -154,7 +154,7 @@ export default {
     if (!token) return;
 
     try {
-        const response = await fetch(`http://localhost:5000/empresas/${empresa.id}/requisitos`, {
+        const response = await fetch(`https://apphabilitaciones.onrender.com/empresas/${empresa.id}/requisitos`, {
             method: "GET",
             headers: { "Authorization": `Bearer ${token}` }
         });
@@ -186,7 +186,7 @@ async agregarRequisito() {
     if (!token) return;
 
     try {
-        const response = await fetch(`http://localhost:5000/empresas/${this.empresaSeleccionada.id}/requisitos`, {
+        const response = await fetch(`https://apphabilitaciones.onrender.com/empresas/${this.empresaSeleccionada.id}/requisitos`, {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -226,7 +226,7 @@ async eliminarRequisito(requisito_id) {
     const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
 
     try {
-        const response = await fetch(`http://localhost:5000/requisitos/${requisito_id}`, {
+        const response = await fetch(`https://apphabilitaciones.onrender.com/requisitos/${requisito_id}`, {
             method: "DELETE",
             headers: {
                 "Authorization": `Bearer ${token}`
@@ -296,7 +296,7 @@ async eliminarRequisito(requisito_id) {
     if (!token) return;
 
     try {
-        const response = await fetch(`http://localhost:5000/empresas/${this.empresaSeleccionada.id}/requisitos`, {
+        const response = await fetch(`https://apphabilitaciones.onrender.com/empresas/${this.empresaSeleccionada.id}/requisitos`, {
             method: "PUT",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -325,7 +325,7 @@ async verTrabajadoresActivos(empresa) {
       if (!token) return;
 
       try {
-        const response = await fetch(`http://localhost:5000/empresas/${empresa.id}/trabajadores_asignados`, {
+        const response = await fetch(`https://apphabilitaciones.onrender.com/empresas/${empresa.id}/trabajadores_asignados`, {
           method: "GET",
           headers: { "Authorization": `Bearer ${token}` },
         });
@@ -355,7 +355,7 @@ async verTrabajadoresActivos(empresa) {
       if (!token) return;
 
       try {
-        const response = await fetch(`http://localhost:5000/empresas/${this.empresaSeleccionada.id}/desvincular/${trabajador.id}`, {
+        const response = await fetch(`https://apphabilitaciones.onrender.com/empresas/${this.empresaSeleccionada.id}/desvincular/${trabajador.id}`, {
           method: "DELETE",
           headers: { "Authorization": `Bearer ${token}` },
         });

@@ -122,7 +122,7 @@ export default {
     }
 
     try {
-        const response = await fetch("http://localhost:5000/trabajadores", {
+        const response = await fetch("https://apphabilitaciones.onrender.com/trabajadores", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -184,7 +184,7 @@ async eliminarTrabajador(id) {
   }
 
   try {
-    const response = await fetch(`http://localhost:5000/trabajadores/${id}`, {
+    const response = await fetch(`https://apphabilitaciones.onrender.com/trabajadores/${id}`, {
       method: "DELETE",
       headers: {
         "Authorization": `Bearer ${token}`
@@ -231,7 +231,7 @@ async guardarEdicionTrabajador(trabajadorEditado) {
   }
 
   try {
-    const response = await fetch(`http://localhost:5000/trabajadores/${trabajadorEditado.id}`, {
+    const response = await fetch(`https://apphabilitaciones.onrender.com/trabajadores/${trabajadorEditado.id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -279,7 +279,7 @@ async obtenerTrabajadores() {
     console.log("📌 Token enviado:", token);
 
     try {
-        const response = await fetch("http://localhost:5000/trabajadores", {
+        const response = await fetch("https://apphabilitaciones.onrender.com/trabajadores", {
             method: "GET",
             headers: {
                 "Authorization": `Bearer ${token}`
@@ -313,7 +313,7 @@ async obtenerEmpresas() {
     }
 
     try {
-        const response = await fetch("http://localhost:5000/empresas", {
+        const response = await fetch("https://apphabilitaciones.onrender.com/empresas", {
             method: "GET",
             headers: {
                 "Authorization": `Bearer ${token}`

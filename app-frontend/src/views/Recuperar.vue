@@ -21,7 +21,7 @@
     methods: {
       async enviarRecuperacion() {
         try {
-          const response = await fetch("http://localhost:5000/recuperar-password", {
+          const response = await fetch("https://apphabilitaciones.onrender.com/recuperar-password", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email: this.email }),
