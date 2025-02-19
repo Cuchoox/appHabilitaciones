@@ -30,6 +30,7 @@ def obtener_empresas():
             "id": empresa.id,
             "nombre": empresa.nombre,
             "trabajadores_activos": trabajadores_activos,  # ✅ Se obtiene correctamente
+            "requisitos": [req.nombre_requisito for req in empresa.requisitos]
         })
 
     return jsonify(resultado), 200

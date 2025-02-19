@@ -1,6 +1,6 @@
 import zipfile
 from flask import Blueprint, jsonify, request, make_response, send_file
-from models import Empresa, db, Trabajador, HistorialAsignacion, Documento
+from models import Empresa, RequisitoEmpresa, db, Trabajador, HistorialAsignacion, Documento
 import logging
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from werkzeug.utils import secure_filename
@@ -305,3 +305,37 @@ def generar_rar(trabajador_id):
 
     trabajador_nombre = f"{trabajador.nombre}_{trabajador.apellido}"
     return send_file(ruta_zip, as_attachment=True, download_name=f"Documentos_{trabajador_nombre}.zip")
+
+@trabajador_bp.route("/trabajadores/<int:trabajador_id>/documentos-faltantes", methods=["GET"])
+@jwt_required()
+def obtener_documentos_faltantes(trabajador_id):
+    empresa_id = request.args.get("empresa_id", type=int)
+
+    if not empresa_id:
+        return jsonify({"error": "Debe proporcionar una empresa"}), 400
+
+    empresa = Empresa.query.get(empresa_id)
+    if not empresa:
+        return jsonify({"error": "Empresa no encontrada"}), 404
+
+    # Obtener los requisitos de documentos para esta empresa
+    requisitos_empresa = RequisitoEmpresa.query.filter_by(empresa_id=empresa_id).all()
+    tipos_requeridos = {req.tipo for req in requisitos_empresa}
+
+    # Obtener los documentos ya subidos por el trabajador
+    documentos_trabajador = Documento.query.filter_by(trabajador_id=trabajador_id).all()
+    documentos_subidos = {doc.tipo: doc for doc in documentos_trabajador}
+
+    # Construir la lista de documentos faltantes
+    documentos_faltantes = []
+    for tipo in tipos_requeridos:
+        documento = documentos_subidos.get(tipo)
+
+        documentos_faltantes.append({
+            "tipo": tipo,
+            "subido": documento is not None,
+            "nombre_archivo": documento.nombre_archivo if documento else None,
+            "fecha_vencimiento": documento.fecha_vencimiento if documento else None
+        })
+
+    return jsonify({"documentos": documentos_faltantes})

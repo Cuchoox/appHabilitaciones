@@ -6,24 +6,23 @@
         <button class="boton volver" @click="$router.push('/trabajadores')">⬅ Volver</button>
         <h1 class="titulo">📂 Documentos de {{ trabajador ? trabajador.nombre.split(' ')[0] + ' ' + trabajador.apellido.split(' ')[0] : 'Cargando...' }}</h1>
       </div>
-      
+
       <!-- Categorías de documentos -->
       <div class="categorias">
-  <button
-    v-for="categoria in categorias"
-    :key="categoria"
-    @click="seleccionarCategoria(categoria)"
-    :class="{ activo: categoriaSeleccionada === categoria }"
-    class="boton-categoria"
-  >
-    {{ categoria }}
-  </button>
-</div>
+        <button
+          v-for="categoria in categorias"
+          :key="categoria"
+          @click="seleccionarCategoria(categoria)"
+          :class="{ activo: categoriaSeleccionada === categoria }"
+          class="boton-categoria"
+        >
+          {{ categoria }}
+        </button>
+      </div>
 
+      <input type="text" v-model="busqueda" @input="filtrarDocumentos" placeholder="Buscar documento..." class="barra-busqueda" />
 
-<input type="text" v-model="busqueda" @input="filtrarDocumentos" placeholder="Buscar documento..." class="barra-busqueda" />
-
-<!-- Listado de documentos -->
+      <!-- Listado de documentos -->
       <div class="tabla-container">
         <table class="tabla-documentos">
           <thead>
@@ -39,53 +38,56 @@
               <td>{{ documento.nombre_archivo }}</td>
               <td>{{ documento.categoria }}</td>
               <td>{{ formatearFecha(documento.fecha_vencimiento) }}</td>
-
               <td>
-                  <button class="boton-descargar" @click="descargarDocumento(documento)">⬇ Descargar</button>
-                  <button class="boton-eliminar" @click="eliminarDocumento(documento.id)">🗑 Eliminar</button>
+                <button class="boton-descargar" @click="descargarDocumento(documento)">⬇ Descargar</button>
+                <button class="boton-eliminar" @click="eliminarDocumento(documento.id)">🗑 Eliminar</button>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
-      
-      <!-- Botones para abrir modales -->
-      <div class="acciones">
-        <button class="boton abrir-modal" @click="mostrarModalSubir = true">📤 Subir Documento</button>
-        <button class="boton abrir-modal" @click="mostrarModalHabilitar = true">✅ Habilitar Trabajador</button>
+
+      <!-- Botón para abrir modal de subir documento -->
+      <button class="boton abrir-modal" @click="mostrarModalSubir = true">📤 Subir Documento</button>
+
+      <!-- Modal Subir Documento -->
+      <div v-if="mostrarModalSubir" class="modal-overlay">
+        <div class="modal">
+          <h2>Subir Documento</h2>
+          <h3>Seleccione un tipo de documento:</h3>
+          <div class="tipo-documentos-lista">
+            <button 
+            v-for="tipo in tiposDocumentos" 
+            :key="tipo" 
+            @click="abrirModalCargarDocumento(tipo)"
+            :class="{ 'subido': documentosSubidosEstado[tipo] }"
+            class="tipo-documento-boton"
+            >
+            {{ tipo }} 
+            <span v-if="documentosSubidosEstado[tipo]" class="tick-verde">✔</span>
+            </button>
+
+          </div>
+          <button class="boton cerrar-modal" @click="mostrarModalSubir = false">❌ Cerrar</button>
+        </div>
       </div>
 
-    <!-- Modal Subir Documento -->
-<!-- Modal Subir Documento -->
-<div v-if="mostrarModalSubir" class="modal-overlay">
-  <div class="modal">
-    <h2>Subir Documento</h2>
-    <input type="file" @change="seleccionarArchivo" class="input-archivo" accept=".jpg, .png, .pdf"/>
-    <input type="date" v-model="fechaVencimiento" class="input-fecha" required />
-
-    <!-- 🔹 Agregar dropdown con los tipos disponibles -->
-
-
-    <select v-model="tipoDocumentoSeleccionado" class="select-tipo">
-    <option disabled value="">Seleccione un tipo</option>
-    <option v-for="tipo in tiposDocumentos" :key="tipo">{{ tipo }}</option>
-</select>
-
-
-    <select v-model="categoriaSeleccionada" class="select-categoria" required>
-      <option disabled value="">Seleccione una categoría</option>
-      <option v-for="categoria in categorias" :key="categoria">{{ categoria }}</option>
-    </select>
-    
-    
-    <button class="boton subir" @click="subirDocumento">📤 Subir Documento</button>
-    <button class="boton cerrar-modal" @click="mostrarModalSubir = false">❌ Cerrar</button>
-  </div>
-</div>
-
-
-      
-      <!-- Modal Habilitar Trabajador -->
+      <!-- Modal para Cargar Documento dentro del modal principal -->
+      <div v-if="mostrarModalCargar" class="modal-overlay">
+        <div class="modal">
+          <h2>{{ documentosSubidos.includes(tipoDocumentoSeleccionado) ? 'Reemplazar' : 'Subir' }} Documento - {{ tipoDocumentoSeleccionado }}</h2>
+          <input type="file" @change="seleccionarArchivo" class="input-archivo" accept=".jpg, .png, .pdf"/>
+          <input type="date" v-model="fechaVencimiento" class="input-fecha" required />
+          <select v-model="categoriaSeleccionada" class="select-categoria">
+            <option disabled value="">Seleccione una categoría</option>
+            <option v-for="categoria in categorias" :key="categoria">{{ categoria }}</option>
+          </select>
+          <button class="boton subir" @click="subirDocumento">📤 {{ documentosSubidos.includes(tipoDocumentoSeleccionado) ? 'Reemplazar' : 'Subir' }} Documento</button>
+          <button class="boton cerrar-modal" @click="cerrarModalCargarDocumento">❌ Cerrar</button>
+        </div>
+      </div>
+      <button class="boton habilitar" @click="mostrarModalHabilitar = true
+      "> Habilitar trabajador</button>
       <div v-if="mostrarModalHabilitar" class="modal-overlay">
         <div class="modal">
           <h2>Habilitar Trabajador</h2>
@@ -97,8 +99,11 @@
           <button class="boton cerrar-modal" @click="mostrarModalHabilitar = false">❌ Cerrar</button>
         </div>
       </div>
+
     </div>
+    
   </div>
+  
 </template>
 
 <script>
@@ -117,14 +122,53 @@ export default {
       fechaVencimiento: "",
       archivoSeleccionado: null,
       empresas: [],
-      empresaSeleccionada: "",
       trabajadorSeleccionado:"",
       mostrarModalSubir: false,
       mostrarModalHabilitar: false,
       busquedaDocumento: "",
-      tiposDocumentos: [],  // 🔹 Lista de tipos de documentos obtenidos del backend
-    tipoDocumentoSeleccionado: "",  // 🔹 Tipo seleccionado por el usuario
+      tiposDocumentos: [],  // Lista de tipos de documentos
+      documentosRequeridos: [],
+      documentosSubidos: [],
+      documentosFaltantes: [],
+      mostrarModalCargar: false,
+      tipoDocumentoSeleccionado: '',
+      documentoSeleccionado: null,
+      empresaSeleccionada: "",
     };
+  },
+  watch: {
+    empresaSeleccionada(newEmpresa) {
+      if (!newEmpresa) {
+        console.log("⚠️ No hay empresa seleccionada.");
+        this.tiposDocumentos = [];
+        return;
+      }
+
+      console.log("🏢 Empresa seleccionada:", newEmpresa);
+
+      // Verificar que la lista de empresas ya está cargada
+      if (!this.empresas.length) {
+        console.log("⚠️ Empresas aún no cargadas, esperando...");
+        return;
+      }
+
+      const empresa = this.empresas.find(emp => emp.id === newEmpresa);
+      console.log("🔍 Empresa encontrada:", empresa);
+
+      if (empresa) {
+        console.log("📋 Requisitos de la empresa:", empresa.requisitos);
+
+        if (empresa.requisitos && empresa.requisitos.length > 0) {
+          this.tiposDocumentos = empresa.requisitos.map(req => req.nombre_requisito);
+        } else {
+          console.log("⚠️ La empresa no tiene requisitos asignados.");
+          this.tiposDocumentos = [];
+        }
+      } else {
+        console.log("❌ No se encontró la empresa en la lista.");
+        this.tiposDocumentos = [];
+      }
+    }
   },
   computed: {
 
@@ -138,8 +182,29 @@ export default {
 
             return coincideCategoria && coincideBusqueda;
         });
-    }
+    },
+     
+    documentosSubidosEstado() {
+    console.log("🔄 Verificando documentos subidos en el modal...", this.documentos);
 
+    return this.tiposDocumentos.reduce((estado, tipo) => {
+      const tipoNormalizado = tipo.trim().toLowerCase(); // Normalizamos el tipo de documento
+
+      estado[tipo] = this.documentos.some(doc => {
+        if (!doc.nombre_archivo) {
+          console.warn("⚠️ Documento sin nombre encontrado:", doc);
+          return false;
+        }
+
+        // 🔹 Extraer el tipo de documento desde el nombre del archivo
+        const tipoExtraido = doc.nombre_archivo.split(" - ")[0]?.trim().toLowerCase();
+
+        return tipoExtraido === tipoNormalizado;
+      });
+
+      return estado;
+    }, {});
+  }
 
   },
   methods: {
@@ -162,67 +227,75 @@ export default {
       this.trabajadorSeleccionado = this.trabajador; // Guardar el trabajador seleccionado
     },
     async obtenerDocumentos() {
-      const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
-      if (!token) return;
+  try {
+    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+    if (!token) return;
 
-      const response = await fetch(`http://localhost:5000/documentos?trabajador_id=${this.trabajador_id}`, {
-        method: "GET",
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-
-      if (!response.ok) return;
-      this.documentos = await response.json();
-    },
-
-    async subirDocumento() {
-    if (!this.archivoSeleccionado || !this.fechaVencimiento || !this.categoriaSeleccionada || !this.tipoDocumentoSeleccionado) {
-        Swal.fire("⚠️ Error", "Todos los campos son obligatorios.", "error");
-        return;
-    }
-
-    console.log("📤 Subiendo documento con datos:", {
-        archivo: this.archivoSeleccionado.name,
-        categoria: this.categoriaSeleccionada,
-        fecha_vencimiento: this.fechaVencimiento,
-        tipo: this.tipoDocumentoSeleccionado,
+    const response = await fetch(`http://localhost:5000/documentos?trabajador_id=${this.trabajador_id}`, {
+      method: "GET",
+      headers: { "Authorization": `Bearer ${token}` }
     });
 
-    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
-    if (!token) {
-        Swal.fire("⚠️ Error", "No tienes autorización. Inicia sesión nuevamente.", "error");
-        this.$router.push("/login");
-        return;
-    }
+    if (!response.ok) throw new Error("Error obteniendo documentos");
 
-    const formData = new FormData();
-    formData.append("archivo", this.archivoSeleccionado);
-    formData.append("nombre_archivo", this.archivoSeleccionado.name);
-    formData.append("categoria", this.categoriaSeleccionada);
-    formData.append("fecha_vencimiento", this.fechaVencimiento);
-    formData.append("tipo", this.tipoDocumentoSeleccionado);  // 👈 Verificar que no sea undefined
-
-    try {
-        const response = await fetch(`http://localhost:5000/trabajadores/${this.trabajador_id}/documentos`, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${token}` // No incluir "Content-Type" porque es FormData
-            },
-            body: formData
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || "Error al subir el documento.");
-        }
-
-        Swal.fire("✅ Éxito", "Documento subido correctamente.", "success");
-        this.obtenerDocumentos();  // 🔄 Actualizar la lista de documentos
-        this.mostrarModalSubir = false; 
-    } catch (error) {
-        console.error("❌ Error al subir documento:", error);
-        Swal.fire("⚠️ Error", error.message, "error");
-    }
+    this.documentos = await response.json(); // 🔄 Se actualiza la lista de documentos
+    console.log("📂 Documentos actualizados:", this.documentos);
+  } catch (error) {
+    console.error("❌ Error al obtener documentos:", error);
+  }
 },
+
+
+    async subirDocumento() {
+  if (!this.archivoSeleccionado || !this.fechaVencimiento || !this.tipoDocumentoSeleccionado) {
+    Swal.fire("⚠️ Error", "Todos los campos son obligatorios.", "error");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("archivo", this.archivoSeleccionado);
+  formData.append("fecha_vencimiento", this.fechaVencimiento);
+  formData.append("tipo", this.tipoDocumentoSeleccionado);
+  formData.append("categoria", this.categoriaSeleccionada);
+
+  const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+  if (!token) {
+    Swal.fire("⚠️ Error", "No tienes autorización.", "error");
+    return;
+  }
+
+  try {
+    const response = await fetch(`http://localhost:5000/trabajadores/${this.trabajador.id}/documentos`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${token}` },
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Error al subir documento.");
+    }
+
+    Swal.fire("✅ Éxito", "Documento subido correctamente.", "success");
+
+    // 🔄 Recargar la lista de documentos para reflejar los cambios
+    await this.obtenerDocumentos();
+this.$forceUpdate(); // 🔄 Forzar actualización del estado reactivo
+
+    // Cerrar modal después de éxito
+    this.mostrarModalCargar = false;
+
+    // Limpiar datos después de subir el documento
+    this.archivoSeleccionado = null;
+    this.fechaVencimiento = "";
+    this.tipoDocumentoSeleccionado = "";
+
+  } catch (error) {
+    console.error("❌ Error al subir documento:", error);
+    Swal.fire("⚠️ Error", error.message, "error");
+  }
+},
+
 
 
 
@@ -315,29 +388,44 @@ seleccionarCategoria(categoria) {
       this.categoriaSeleccionada = categoria; // ✅ Selecciona la nueva categoría
     }
   },
+
   async obtenerEmpresas() {
-    try {
-      const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
-      if (!token) {
-        console.error("❌ No se encontró token de autenticación");
-        return;
+  const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+
+  if (!token) {
+    console.error("⚠️ No hay token disponible. Asegúrate de iniciar sesión.");
+    return;
+  }
+
+  try {
+    const response = await fetch("http://localhost:5000/empresas", {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
       }
+    });
 
-      const response = await fetch("http://localhost:5000/empresas", {
-        method: "GET",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
-      });
-
-      if (!response.ok) throw new Error("Error al obtener empresas.");
-
-      this.empresas = await response.json();
-    } catch (error) {
-      console.error("❌ Error al obtener empresas:", error);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Error al obtener empresas");
     }
-  },
+
+    const data = await response.json();
+    console.log("✅ Empresas obtenidas:", data);
+
+    this.empresas = data.map(emp => ({
+      ...emp,
+      requisitos: emp.requisitos || []
+    }));
+
+  } catch (error) {
+    console.error("❌ Error al obtener empresas:", error);
+  }
+},
+
+
+
   filtrarDocumentos() {
           this.documentosFiltrados = this.documentos.filter(doc =>
               doc.nombre_archivo.toLowerCase().includes(this.busqueda.toLowerCase())
@@ -352,16 +440,13 @@ seleccionarCategoria(categoria) {
           });
       },
 
-    async habilitarTrabajador() {
-    // Verifica si trabajador y empresa están definidos antes de hacer la petición
+      async habilitarTrabajador() {
     if (!this.trabajadorSeleccionado || !this.trabajadorSeleccionado.id) {
-        console.error("❌ Error: No hay trabajador seleccionado.");
         Swal.fire("❌ Error", "No hay trabajador seleccionado.", "error");
         return;
     }
 
     if (!this.empresaSeleccionada) {
-        console.error("❌ Error: No se ha seleccionado una empresa.");
         Swal.fire("❌ Error", "Debe seleccionar una empresa antes de continuar.", "error");
         return;
     }
@@ -371,7 +456,7 @@ seleccionarCategoria(categoria) {
 
     try {
         console.log(`📤 Enviando solicitud para generar .RAR: Trabajador ${this.trabajadorSeleccionado.id}, Empresa ${this.empresaSeleccionada}`);
-        
+
         const response = await fetch(`http://localhost:5000/trabajadores/${this.trabajadorSeleccionado.id}/generar-rar`, {
             method: "POST",
             headers: {
@@ -382,9 +467,29 @@ seleccionarCategoria(categoria) {
         });
 
         if (!response.ok) {
-            throw new Error("Error al generar el .rar");
+            const errorData = await response.json();
+
+            console.log("⚠️ Respuesta de error del backend:", errorData);
+
+            // 📌 Verificar si el backend envió la lista de documentos faltantes
+            if (errorData.faltantes && Array.isArray(errorData.faltantes) && errorData.faltantes.length > 0) {
+                Swal.fire({
+                    title: "⚠️ No se ha podido generar el .RAR",
+                    html: `<p>Al trabajador le faltan los siguientes documentos para ser habilitado:</p>
+                           <ul>${errorData.faltantes.map(doc => `<li>📄 ${doc}</li>`).join('')}</ul>`,
+                    icon: "warning"
+                });
+
+                // 🔄 Volver a cargar los tipos de documentos para evitar que desaparezcan
+                await this.actualizarTiposDocumentos();
+
+                return;
+            }
+
+            throw new Error(errorData.error || "Error desconocido al generar el .RAR");
         }
 
+        // 📦 Si todo está bien, proceder a descargar el archivo
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -398,7 +503,10 @@ seleccionarCategoria(categoria) {
 
     } catch (error) {
         console.error("❌ Error al generar .rar:", error);
-        Swal.fire("❌ Error", "Hubo un problema al generar el .RAR.", "error");
+        Swal.fire("❌ Error", error.message, "error");
+
+        // 🔄 Asegurar que los tipos de documentos siguen disponibles
+        await this.actualizarTiposDocumentos();
     }
 },
 
@@ -422,18 +530,128 @@ async obtenerTiposDocumentos() {
       console.error("❌ Error al obtener tipos de documentos:", error);
     }
   },
+  async cargarDocumentosRequeridos() {
+    if (!this.empresaSeleccionada) return;
+    
+    const response = await fetch(`http://localhost:5000/empresas/${this.empresaSeleccionada}/requisitos`);
+    const data = await response.json();
+    this.documentosRequeridos = data.map(req => req.nombre_requisito);
+    
+    this.documentosFaltantes = this.documentosRequeridos.filter(doc => !this.documentosSubidos.includes(doc));
+  },
+  async continuarHabilitacion() {
+    if (!this.empresaSeleccionada) return;
+
+    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+    if (!token) return;
+
+    try {
+        const response = await fetch(
+            `http://localhost:5000/trabajadores/${this.trabajador.id}/documentos-faltantes?empresa_id=${this.empresaSeleccionada}`,
+            {
+                method: "GET",
+                headers: { "Authorization": `Bearer ${token}` },
+            }
+        );
+
+        if (!response.ok) throw new Error("Error al obtener documentos faltantes");
+
+        const data = await response.json();
+        console.log("📥 Documentos faltantes recibidos:", data);
+
+        this.documentosFaltantes = data.documentos;
+    } catch (error) {
+        console.error("❌ Error al obtener documentos faltantes:", error);
+    }
+},
+async actualizarTiposDocumentos() {
+    if (!this.empresaSeleccionada) {
+        console.error("⚠️ No hay empresa seleccionada");
+        return;
+    }
+
+    console.log("🔍 Volviendo a obtener requisitos para empresa:", this.empresaSeleccionada);
+
+    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+    if (!token) {
+        console.error("⚠️ No hay token de acceso disponible");
+        return;
+    }
+
+    try {
+        // 🔄 Obtener la empresa correcta
+        const empresa = this.empresas.find(emp => emp.nombre === this.empresaSeleccionada);
+        if (!empresa) {
+            throw new Error("❌ No se encontró la empresa seleccionada en la lista.");
+        }
+
+        console.log("📋 Obteniendo requisitos de empresa ID:", empresa.id);
+
+        // 🔄 Hacer la petición correcta con el ID en lugar del nombre
+        const response = await fetch(`http://localhost:5000/empresas/${empresa.id}/requisitos`, {
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error("Error al obtener requisitos");
+        }
+
+        const data = await response.json();
+        console.log("✅ Requisitos obtenidos del backend:", data);
+
+        this.tiposDocumentos = data.map(req => req.nombre_requisito);
+
+        // 🔄 Forzar actualización de Vue para reflejar los cambios
+        this.$nextTick(() => {
+            this.$forceUpdate();
+        });
+
+    } catch (error) {
+        console.error("❌ Error al obtener requisitos:", error);
+
+        Swal.fire("⚠️ Error", "No se pudo obtener los tipos de documentos. Intenta nuevamente.", "error");
+    }
+},
 
 
+abrirModalCargarDocumento(tipo) {
+  this.tipoDocumentoSeleccionado = tipo;
+  this.mostrarModalCargar = true;
 
+  // 🔄 Forzar actualización para que Vue detecte cambios en documentosSubidosEstado
+  this.$nextTick(() => {
+    console.log("🔄 Actualizando estado de documentos en el modal...");
+    this.$forceUpdate();
+  });
+},
+    cargarDocumentosSubidos() {
+      const documentosGuardados = JSON.parse(localStorage.getItem('documentosSubidos')) || [];
+      this.documentosSubidos = documentosGuardados;
+    },
+
+    cerrarModalCargarDocumento() {
+      this.mostrarModalCargar = false;
+      this.archivoSeleccionado = null;
+      this.fechaVencimiento = "";
+      this.categoriaSeleccionada = "";
+      this.tipoDocumentoSeleccionado = "";
+    }
+    
   },
   created() {
     this.obtenerTrabajador();
     this.obtenerDocumentos();
     this.obtenerEmpresas();
     this.obtenerTiposDocumentos();
+    this.cargarDocumentosSubidos();
+
  
-  }
-};
+  },
+}
 </script>
 
 
@@ -675,5 +893,44 @@ async obtenerTiposDocumentos() {
     font-weight: bold;
     color: #134b91;
 }
+.tipo-documentos-container {
+  margin: 15px 0;
+  text-align: center;
+}
 
+.tipo-documentos-lista {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.tipo-documento-boton {
+  background: #e9ecef;
+  color: #495057;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+  font-size: 1rem;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.tipo-documento-boton.subido {
+  background: #28a745;
+  color: white;
+}
+
+.tipo-documento-boton:hover {
+  background: #d6d8db;
+}
+
+.tick-verde {
+  color: white;
+  font-weight: bold;
+  margin-left: 5px;
+}
 </style>
