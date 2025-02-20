@@ -61,9 +61,9 @@
                     <input type="text" v-model="nuevoDocumento.nombre" placeholder="Nombre del documento" />
                     <select v-model="nuevoDocumento.categoria">
                         <option disabled value="">Seleccione una categoría</option>
-                        <option>Personal</option>
-                        <option>Licencias</option>
-                        <option>Certificaciones</option>
+                        <option>Identificación y Contratos</option>
+                        <option>Salud y Seguridad</option>
+                        <option>Capacitación y Normativa</option>
                     </select>
                     <button class="boton agregar-doc" @click="agregarRequisito">➕ Guardar</button>
                 </div>

@@ -48,29 +48,38 @@
       </div>
 
       <!-- Botón para abrir modal de subir documento -->
-      <button class="boton abrir-modal" @click="mostrarModalSubir = true">📤 Subir Documento</button>
 
       <!-- Modal Subir Documento -->
       <div v-if="mostrarModalSubir" class="modal-overlay">
-        <div class="modal">
-          <h2>Subir Documento</h2>
-          <h3>Seleccione un tipo de documento:</h3>
-          <div class="tipo-documentos-lista">
-            <button 
-            v-for="tipo in tiposDocumentos" 
-            :key="tipo" 
-            @click="abrirModalCargarDocumento(tipo)"
-            :class="{ 'subido': documentosSubidosEstado[tipo] }"
-            class="tipo-documento-boton"
-            >
-            {{ tipo }} 
-            <span v-if="documentosSubidosEstado[tipo]" class="tick-verde">✔</span>
-            </button>
+  <div class="modal">
+    <h2 style="color: black;">📤 Subir Documento</h2>
 
-          </div>
-          <button class="boton cerrar-modal" @click="mostrarModalSubir = false">❌ Cerrar</button>
-        </div>
-      </div>
+    <!-- Selector de empresa dentro del modal -->
+    <select v-model="empresaSeleccionada" @change="filtrarTiposPorEmpresa" class="select-empresa">
+      <option disabled value="">Seleccione una empresa</option>
+      <option v-for="empresa in empresas" :key="empresa.id" :value="empresa.id">
+        {{ empresa.nombre }}
+      </option>
+    </select>
+
+    <h3 style="color: black;">Seleccione un tipo de documento:</h3>
+
+    <div class="tipo-documentos-lista">
+      <button 
+        v-for="tipo in tiposDocumentos" 
+        :key="tipo" 
+        @click="abrirModalCargarDocumento(tipo)"
+        :class="{ 'subido': documentosSubidosEstado[tipo] }"
+        class="tipo-documento-boton"
+      >
+        {{ tipo }} 
+        <span v-if="documentosSubidosEstado[tipo]" class="tick-verde">✔</span>
+      </button>
+    </div>
+
+    <button class="boton cerrar-modal" @click="cerrarModalSubirDocumento">❌ Cerrar</button>
+  </div>
+</div>
 
       <!-- Modal para Cargar Documento dentro del modal principal -->
       <div v-if="mostrarModalCargar" class="modal-overlay">
@@ -86,8 +95,10 @@
           <button class="boton cerrar-modal" @click="cerrarModalCargarDocumento">❌ Cerrar</button>
         </div>
       </div>
-      <button class="boton habilitar" @click="mostrarModalHabilitar = true
-      "> Habilitar trabajador</button>
+      <div class="acciones">
+        <button class="boton abrir-modal" @click="mostrarModalSubir = true">📤 Subir Documento</button>
+        <button class="boton habilitar" @click="mostrarModalHabilitar = true"> Habilitar trabajador</button>
+      </div>
       <div v-if="mostrarModalHabilitar" class="modal-overlay">
         <div class="modal">
           <h2>Habilitar Trabajador</h2>
@@ -117,7 +128,7 @@ export default {
       documentos: [],
       busqueda: "",
       trabajador: null,
-      categorias: ["Personal", "Licencias", "Certificaciones"],
+      categorias: ["Identificación y Contratos", "Salud y Seguridad", "Capacitación y Normativa"],
       categoriaSeleccionada: "",
       fechaVencimiento: "",
       archivoSeleccionado: null,
@@ -188,23 +199,29 @@ export default {
     console.log("🔄 Verificando documentos subidos en el modal...", this.documentos);
 
     return this.tiposDocumentos.reduce((estado, tipo) => {
-      const tipoNormalizado = tipo.trim().toLowerCase(); // Normalizamos el tipo de documento
-
-      estado[tipo] = this.documentos.some(doc => {
-        if (!doc.nombre_archivo) {
-          console.warn("⚠️ Documento sin nombre encontrado:", doc);
-          return false;
+        if (!tipo || typeof tipo !== "string") {
+            console.warn("⚠️ Tipo de documento inválido detectado:", tipo);
+            return estado;  // Saltar valores no válidos
         }
 
-        // 🔹 Extraer el tipo de documento desde el nombre del archivo
-        const tipoExtraido = doc.nombre_archivo.split(" - ")[0]?.trim().toLowerCase();
+        const tipoNormalizado = tipo.trim().toLowerCase(); // Normalizar el tipo de documento
 
-        return tipoExtraido === tipoNormalizado;
-      });
+        estado[tipo] = this.documentos.some(doc => {
+            if (!doc.nombre_archivo) {
+                console.warn("⚠️ Documento sin nombre encontrado:", doc);
+                return false;
+            }
 
-      return estado;
+            // 🔹 Extraer el tipo de documento desde el nombre del archivo
+            const tipoExtraido = doc.nombre_archivo.split(" - ")[0]?.trim().toLowerCase();
+
+            return tipoExtraido === tipoNormalizado;
+        });
+
+        return estado;
     }, {});
-  }
+}
+
 
   },
   methods: {
@@ -639,7 +656,53 @@ abrirModalCargarDocumento(tipo) {
       this.fechaVencimiento = "";
       this.categoriaSeleccionada = "";
       this.tipoDocumentoSeleccionado = "";
+    },
+    filtrarTiposPorEmpresa() {
+    if (!this.empresaSeleccionada) {
+        console.log("⚠️ No hay empresa seleccionada, limpiando tipos de documentos.");
+        this.tiposDocumentos = [];
+        return;
     }
+
+    // Buscar la empresa en la lista
+    const empresa = this.empresas.find(emp => emp.id === this.empresaSeleccionada);
+    if (!empresa) {
+        console.warn("❌ No se encontró la empresa seleccionada.");
+        this.tiposDocumentos = [];
+        return;
+    }
+
+    console.log("📋 Filtrando tipos de documentos para la empresa:", empresa.nombre);
+    console.log("📜 Requisitos obtenidos:", empresa.requisitos);
+
+    if (empresa.requisitos && empresa.requisitos.length > 0) {
+        this.tiposDocumentos = empresa.requisitos
+            .map(req => {
+                if (typeof req === "string") {
+                    return req.trim(); // Si ya es string, solo lo limpiamos
+                } else if (req && req.nombre_requisito) {
+                    return req.nombre_requisito.trim(); // Si es un objeto, tomamos su campo
+                } else {
+                    console.warn("⚠️ Requisito con estructura inesperada:", req);
+                    return null;
+                }
+            })
+            .filter(req => req !== null && req !== ""); // Eliminamos nulos y vacíos
+
+        console.log("✅ Tipos de documentos cargados después de filtrado:", this.tiposDocumentos);
+    } else {
+        console.warn("⚠️ La empresa no tiene requisitos asignados.");
+        this.tiposDocumentos = [];
+    }
+},
+cerrarModalSubirDocumento() {
+  this.mostrarModalSubir = false;
+  this.empresaSeleccionada = ""; // 🔄 Reinicia la selección de empresa
+  this.tiposDocumentos = []; // 🔄 Limpia la lista de tipos de documentos
+}
+
+
+
     
   },
   created() {
@@ -823,6 +886,8 @@ abrirModalCargarDocumento(tipo) {
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 1000; /* 🔹 Asegura que el modal está por encima de todo */
+
 }
 
 .modal {
@@ -833,6 +898,8 @@ abrirModalCargarDocumento(tipo) {
   text-align: center;
   max-width: 500px;
   width: 100%;
+  z-index: 1001; /* 🔹 Asegura que el modal está por encima de todo */
+
 }
 
 .input-archivo,

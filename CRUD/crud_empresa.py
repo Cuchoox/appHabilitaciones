@@ -179,7 +179,8 @@ def agregar_requisito(empresa_id):
     nuevo_requisito = RequisitoEmpresa(
         empresa_id=empresa_id,
         nombre_requisito=data["nombre_requisito"],
-        categoria=data["categoria"]
+        categoria=data["categoria"],
+        tipo=data.get("tipo", data["nombre_requisito"])  # 🔹 Usa 'nombre_requisito' si 'tipo' no se envía
     )
 
     db.session.add(nuevo_requisito)
